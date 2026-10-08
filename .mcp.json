@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "concur": {
+      "command": "npx",
+      "args": ["-y", "@chrischall/concur-mcp"]
+    }
+  }
+}

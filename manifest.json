@@ -1,0 +1,61 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/dxt/main/dist/mcpb-manifest.schema.json",
+  "manifest_version": "0.3",
+  "name": "concur-mcp",
+  "display_name": "SAP Concur",
+  "version": "0.0.0",
+  "description": "Unofficial SAP Concur tools for Claude — expense reports, expenses, receipts and trips via your signed-in browser",
+  "author": {
+    "name": "Chris Chall",
+    "email": "chris.c.hall@gmail.com",
+    "url": "https://github.com/chrischall"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrischall/concur-mcp"
+  },
+  "homepage": "https://github.com/chrischall/concur-mcp",
+  "support": "https://github.com/chrischall/concur-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "concur",
+    "sap-concur",
+    "expenses",
+    "expense-reports",
+    "receipts",
+    "travel"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/bundle.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/bundle.js"
+      ],
+      "env": {
+        "CONCUR_DC": "${user_config.concur_dc}"
+      }
+    }
+  },
+  "user_config": {
+    "concur_dc": {
+      "type": "string",
+      "title": "Concur datacenter",
+      "description": "The datacenter from your signed-in Concur tab's host (e.g. us2 for us2.concursolutions.com). Defaults to us2.",
+      "default": "us2",
+      "required": false
+    }
+  },
+  "tools": [],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=22.5.0"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "chrischall",
+  "owner": {
+    "name": "Chris Chall",
+    "email": "chris.c.hall@gmail.com"
+  },
+  "metadata": {
+    "description": "SAP Concur tools for Claude Code",
+    "version": "0.0.0"
+  },
+  "plugins": [
+    {
+      "name": "concur",
+      "displayName": "SAP Concur",
+      "source": "./",
+      "description": "Unofficial SAP Concur tools for Claude — expense reports, expenses, receipts and trips via MCP",
+      "version": "0.0.0",
+      "author": {
+        "name": "Chris Chall"
+      },
+      "homepage": "https://github.com/chrischall/concur-mcp",
+      "repository": "https://github.com/chrischall/concur-mcp",
+      "license": "MIT",
+      "keywords": [
+        "concur",
+        "sap-concur",
+        "expenses",
+        "mcp",
+        "travel"
+      ],
+      "category": "productivity"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+version: 1
+name: SAP Concur
+slug: concur
+summary: >-
+  SAP Concur expense reports, expenses, receipts and trips, read and write
+  (every write confirmation-gated). BROWSER-BRIDGE BOOTSTRAP MCP: the
+  fetchproxy bridge is used only to lift the HttpOnly `JWT` cookie from the
+  user's signed-in <dc>.concursolutions.com tab; every API call is then plain
+  Node fetch with `Authorization: Bearer`. Hosting therefore needs runtime
+  `fly-shared`, `bridge: true` and `bridgePortEnv: CONCUR_WS_PORT` — none of
+  which this manifest can express (they are registration fields, set over the
+  control API).
+env:
+  - name: CONCUR_DC
+    required: false
+    help: >-
+      Concur datacenter, taken from the signed-in tab's host (us2 for
+      us2.concursolutions.com, eu2 for eu2.concursolutions.com, …). Defaults to
+      us2. Must match the session JWT's issuer or every call fails with an
+      actionable mismatch error.
+  - name: CONCUR_WS_PORT
+    required: false
+    help: >-
+      Concentrator port for the fetchproxy bridge (defaults to the fleet-shared
+      37149). The runner injects a per-registration port for a hosted bridged
+      child, so this is the name to give `bridgePortEnv` at registration.
+  - name: MCP_CONFIRM_MODE
+    required: false
+    help: >-
+      What a confirmation-gated write does on a client that cannot show a
+      confirmation prompt: ask-user (default; preview + token, the user
+      approves in chat), auto (the model may use the token itself after the
+      preview), or refuse. An unrecognised value is treated as refuse.
+  - name: MCP_CONFIRM_ELICITATION
+    required: false
+    help: >-
+      on (default) confirms writes with an MCP elicitation prompt when the
+      client supports one; off never prompts, so every client takes the
+      MCP_CONFIRM_MODE path (for clients that declare elicitation but never
+      render it).
+state:
+  dataDir: true
+  reason: >-
+    keeps the fetchproxy identity under $HOME/.fetchproxy so the browser
+    pairing survives restarts; without it every cold start asks the user to
+    re-pair
+# egress: deliberately NO fixed `allow` block. The server process dials only
+# the tenant-derived API host https://www-<dc>.api.concursolutions.com
+# (/spend-graphql/graphql, /spend-graphql/upload, /cds/graphql), where <dc>
+# comes from CONCUR_DC (e.g. www-us2.api.concursolutions.com). The web host
+# <dc>.concursolutions.com is reached only by the user's browser over the
+# bridge (cookie lift), never by this process.

@@ -1,0 +1,583 @@
+
+### loadTripList
+query loadTripList($filter: TravelTripListFilterInput, $sort: TravelTripListSortInput, $nextToken: String) {
+        travel {
+            trips {
+                tripPlanEligible
+                list(filter: $filter, sort: $sort, nextToken: $nextToken) {
+                    ... on TravelTripListSuccessResult {
+                        meta {
+                            nextToken
+                            filter {
+                                quick {
+                                    value
+                                    isSelected
+                                }
+                                tripName
+                                tripStatus {
+                                    value
+                                    isSelected
+                                }
+                                content {
+                                    value
+                                    isSelected
+                                }
+                                fromDate
+                                toDate
+                            }
+                            sort {
+                                sortBy
+                                direction
+                                isSelected
+                            }
+                        }
+                        trips {
+                            id
+                            recordLocator
+                            status
+                            displayStatus
+                            name
+                            bookings {
+                                type
+                            }
+                            messages {
+                                type
+                                fields {
+                                    key
+                                    value
+                                }
+                            }
+                            startDate
+                            endDate
+                            imageUrl
+                            approval {
+                                status
+                            }
+                            messagesV2 {
+                                gqlType: __typename
+                                ... on TravelTripListUntranslatedMessage {
+                                    type
+                                    fields {
+                                        key
+                                        value
+                                    }
+                                }
+                                ... on TravelTripListTranslatedMessage {
+                                    message
+                                }
+                            }
+                        }
+                    }
+                    ... on TravelErrorResponse {
+                        messages {
+                            code
+                            type
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+### loadOverviewTrip
+query loadOverviewTrip($tripId: ID!, $customTextKeys: [TravelCustomTextKey!]!, $showTripExtras: Boolean!) {
+        travel {
+            ...customTexts
+            trips {
+                trip(id: $tripId) {
+                    id
+                    recordLocator
+                    name
+                    description
+                    displayStatus
+                    traveler {
+                        ...tripTraveler
+                    }
+                    arranger {
+                        displayName
+                    }
+                    localStartDate
+                    travelConfigId
+                    status
+                    localEndDate
+                    editability
+                    availableActionsMap {
+                        ...tripAvailableActions
+                    }
+                    agencyDetails {
+                        name
+                        addressList
+                        daytime {
+                            ...agencyTimeDetails
+                        }
+                        faxNumber
+                        logoUrl
+                        nighttime {
+                            ...agencyTimeDetails
+                        }
+                    }
+                    containsInitiatedBookings
+                    canEnableEreceipts
+                    userSuppliedHotelsEnabled
+                    totalCost {
+                        ...tripCost
+                    }
+                    totalCostAmount {
+                        ...travelPrice
+                    }
+                    costBreakdownGroups {
+                        ...costBreakdownGroup
+                    }
+                    bookingsV2 {
+                        ...tripBookingV2
+                    }
+                    reservationsV2 {
+                        ...tripReservationV2
+                    }
+                    activities {
+                        air {
+                            travelVersion
+                        }
+                        car {
+                            travelVersion
+                        }
+                        hotel {
+                            travelVersion
+                        }
+                        rail {
+                            travelVersion
+                        }
+                    }
+                    customFields {
+                        id
+                        title
+                        value
+                    }
+                    plan {
+                        ...itinTripPlan
+                    }
+                    tripExtras @include(if: $showTripExtras) {
+                        ...travelTripExtras
+                    }
+                    activeLock {
+                        ...tripLock
+                    }
+                    messages {
+                        ...message
+                    }
+                }
+            }
+        }
+    }
+
+### loadTripHistory
+query loadTripHistory($tripId: ID!) {
+        travel {
+            trips {
+                trip(id: $tripId) {
+                    id
+                    historyRecords {
+                        date
+                        events {
+                            id
+                            datetime
+                            actor {
+                                displayName
+                            }
+                            reason
+                            action {
+                                ... on TravelTripHistoryTripConfirmAction {
+                                    type: __typename
+                                    confirmDate
+                                    policies {
+                                        ruleAction
+                                        ruleMessage
+                                        violationReason
+                                        travelerComment
+                                    }
+                                }
+                                ... on TravelTripHistoryTripConfirmEmailAction {
+                                    type: __typename
+                                    sendDate
+                                    recipients {
+                                        email
+                                    }
+                                }
+                                ... on TravelTripHistoryTripCancelAction {
+                                    type: __typename
+                                    cancelDate
+                                    status
+                                }
+                                ... on TravelTripHistoryTripCreateAction {
+                                    type: __typename
+                                    createDate
+                                }
+                                ... on TravelTripHistoryPnrCancelAction {
+                                    type: __typename
+                                    cancelationType
+                                }
+                                ... on TravelTripHistoryPnrRequestTicketingAction {
+                                    type: __typename
+                                    date
+                                }
+                                ... on TravelTripHistoryPnrAgencyClaimedAction {
+                                    type: __typename
+                                }
+                                ... on TravelTripHistoryApprovalDeadlineExpireAction {
+                                    type: __typename
+                                }
+                                ... on TravelTripHistoryNotifyManagerAction {
+                                    type: __typename
+                                    manager {
+                                        displayName
+                                        email
+                                    }
+                                }
+                                ... on TravelTripHistoryTripApproveAction {
+                                    type: __typename
+                                    approver {
+                                        displayName
+                                        approverId
+                                    }
+                                }
+                                ... on TravelTripHistoryTripRejectAction {
+                                    type: __typename
+                                    approver {
+                                        displayName
+                                        approverId
+                                    }
+                                    comment
+                                }
+                                ... on TravelTripHistoryTripSubmitForApprovalAction {
+                                    type: __typename
+                                    approver {
+                                        displayName
+                                        approverId
+                                    }
+                                    deadline
+                                }
+                                ... on TravelTripHistoryTripSubmitForApprovalEmailAction {
+                                    type: __typename
+                                    approver {
+                                        displayName
+                                        approverId
+                                    }
+                                    recipient {
+                                        displayName
+                                        email
+                                    }
+                                }
+                                ... on TravelTripHistoryUserHoldDeadlineChangedAction {
+                                    type: __typename
+                                    changeReason
+                                    newDeadline
+                                    previousDeadline
+                                }
+                                ... on TravelTripHistoryBookingCreateAction {
+                                    type: __typename
+                                    payment {
+                                        lastFourDigits
+                                        paymentType
+                                        name
+                                    }
+                                    bookingType
+                                    status
+                                    bookingLocation {
+                                        start {
+                                            ...historyLocation
+                                        }
+                                        end {
+                                            ...historyLocation
+                                        }
+                                    }
+                                    supplierDisplayName
+                                    bookingState
+                                    confirmationNumber
+                                    actionDetails {
+                                        ... on TravelTripHistoryBookingCreateHotelActionDetails {
+                                            propertyName
+                                        }
+                                    }
+                                }
+                                ... on TravelTripHistoryBookingUpdateAction {
+                                    type: __typename
+                                    bookingType
+                                    bookingLocation {
+                                        start {
+                                            ...historyLocation
+                                        }
+                                        end {
+                                            ...historyLocation
+                                        }
+                                    }
+                                    supplierDisplayName
+                                    actionDetails {
+                                        ... on TravelTripHistoryBookingUpdateHotelActionDetails {
+                                            type: __typename
+                                            updateType: type
+                                            propertyName
+                                        }
+                                    }
+                                }
+                                ... on TravelTripHistoryBookingCancelAction {
+                                    type: __typename
+                                    bookingType
+                                    cancelationNumber
+                                    status
+                                    bookingLocation {
+                                        start {
+                                            ...historyLocation
+                                        }
+                                        end {
+                                            ...historyLocation
+                                        }
+                                    }
+                                    supplierDisplayName
+                                    bookingState
+                                    actionDetails {
+                                        ... on TravelTripHistoryBookingCancelHotelActionDetails {
+                                            propertyName
+                                        }
+                                    }
+                                }
+                                ... on TravelTripHistoryBookingDeleteAction {
+                                    type: __typename
+                                    bookingType
+                                    status
+                                    bookingLocation {
+                                        start {
+                                            ...historyLocation
+                                        }
+                                        end {
+                                            ...historyLocation
+                                        }
+                                    }
+                                    supplierDisplayName
+                                    bookingState
+                                    actionDetails {
+                                        ... on TravelTripHistoryBookingDeleteHotelActionDetails {
+                                            propertyName
+                                        }
+                                    }
+                                }
+                                ... on TravelTripHistoryTripChangeAction {
+                                    type: __typename
+                                    status
+                                }
+                                ... on TravelTripHistoryRequestCreateAction {
+                                    type: __typename
+                                }
+                                ... on TravelTripHistoryRequestRecallAction {
+                                    type: __typename
+                                }
+                                ... on TravelTripHistoryRequestSubmitAction {
+                                    type: __typename
+                                }
+                                ... on TravelTripHistoryOrphanDetectAction {
+                                    type: __typename
+                                }
+                                ... on TravelTripHistoryOrphanDetectEmailAction {
+                                    type: __typename
+                                    sendDate
+                                    recipients {
+                                        email
+                                    }
+                                }
+                                ... on TravelTripHistoryRequestApproveAction {
+                                    type: __typename
+                                    comment
+                                }
+                                ... on TravelTripHistoryRequestSendBackAction {
+                                    type: __typename
+                                    comment
+                                }
+                                ... on TravelTripHistoryRequestApprovalRequireAction {
+                                    type: __typename
+                                    deadline
+                                }
+                                ... on TravelTripHistoryRequestDeadlineExpireAction {
+                                    type: __typename
+                                    deadline
+                                }
+                                ... on TravelTripHistoryImminentHoldExpirationDetectAction {
+                                    type: __typename
+                                }
+                                ... on TravelTripHistoryImminentHoldExpirationDetectEmailAction {
+                                    type: __typename
+                                    sendDate
+                                    recipients {
+                                        email
+                                    }
+                                }
+                                ... on TravelTripHistoryBookingChangeAction {
+                                    type: __typename
+                                    confirmationNumber
+                                    status
+                                    bookingType
+                                    bookingLocation {
+                                        start {
+                                            ...historyLocation
+                                        }
+                                        end {
+                                            ...historyLocation
+                                        }
+                                    }
+                                    supplierDisplayName
+                                    bookingState
+                                    actionDetails {
+                                        ... on TravelTripHistoryBookingChangeHotelActionDetails {
+                                            propertyName
+                                            hotelConfirmationNumber
+                                            checkInDate
+                                            checkOutDate
+                                            checkInTime
+                                            checkOutTime
+                                        }
+                                        ... on TravelTripHistoryBookingChangeCarActionDetails {
+                                            pickupPlainDateTime
+                                            dropoffPlainDateTime
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+### booking
+query booking($tripId: ID!, $bookingId: ID!) {
+        travel {
+            trips {
+                trip(id: $tripId) {
+                    id
+                    bookingV2(id: $bookingId) {
+                        ...tripBookingV2
+                    }
+                }
+            }
+        }
+    }
+
+### sendItinerary
+mutation sendItinerary($input: TravelTripSendItineraryEmailInput!) {
+        travel {
+            trip {
+                sendItineraryEmail(input: $input) {
+                    tripId
+                }
+            }
+        }
+    }
+
+### tryCancelTripOrBooking
+mutation tryCancelTripOrBooking($tripId: ID!, $bookingIds: [ID!], $token: ID) {
+        travel {
+            trip {
+                tryCancel(tripId: $tripId, bookingIds: $bookingIds, token: $token) {
+                    ... on TravelTripCancelSuccessResult {
+                        travelTripCancelResult {
+                            token
+                            punchOutUrl
+                        }
+                    }
+                    ... on TravelTripCancelFailureResult {
+                        messages {
+                            ...message
+                        }
+                        trip {
+                            id
+                            recordLocator
+                            name
+                            description
+                        }
+                    }
+                    ... on TravelErrorResponse {
+                        messages {
+                            ...message
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+### cancelSummary
+query cancelSummary($tripId: ID!, $bookingIds: [ID!]) {
+        travel {
+            trips {
+                trip(id: $tripId) {
+                    id
+                }
+                cancelSummary(tripId: $tripId, bookingIds: $bookingIds) {
+                    tripName
+                    tripActivities {
+                        ...activities
+                    }
+                    tripExperience {
+                        ...tripExperience
+                    }
+                    bookings {
+                        type: __typename
+
+                        id
+                        cancelConditions {
+                            ...cancelConditions
+                        }
+                        ... on TravelTripAirCancelSummaryBooking {
+                            journeys {
+                                originDisplayName
+                                destinationDisplayName
+                            }
+                        }
+                        ... on TravelTripCarCancelSummaryBooking {
+                            rentalRulesAndRestrictions {
+                                rules {
+                                    category
+                                    text
+                                }
+                                fallbackUrl
+                            }
+                        }
+                        ... on TravelTripRailCancelSummaryBooking {
+                            fares {
+                                ...tripRailFare
+                            }
+                            rulesAndRestrictions {
+                                ...tripRailRulesAndRestrictions
+                            }
+                            journeys {
+                                departure {
+                                    ...stationDateTime
+                                }
+                                arrival {
+                                    ...stationDateTime
+                                }
+                            }
+                        }
+                        ... on TravelTripHotelCancelSummaryBooking {
+                            rate {
+                                ...tripHotelRate
+                            }
+                        }
+                    }
+                    cannotCancelReason
+                }
+            }
+        }
+    }
+
+### loadTripActivities
+query loadTripActivities($tripId: ID!) {
+        travel {
+            trips {
+                trip(id: $tripId) {
+                    activities {
+                        ...activities
+                    }
+                }
+            }
+        }
+    }

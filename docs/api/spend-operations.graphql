@@ -1,0 +1,1770 @@
+
+### CreateReport
+mutation CreateReport($requestId: ID!) {
+    CDS_travelRequest {
+      report {
+        create(requestId: $requestId) {
+          reportId
+        }
+      }
+    }
+  }
+
+### CreateReportHeader
+mutation CreateReportHeader(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $fields: CreateReportFieldsInput!
+  ) {
+    createReport(contextRole: $contextRole, fields: $fields, userId: $userId) {
+      reportId
+    }
+  }
+
+### UpdateReportHeader
+mutation UpdateReportHeader(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $fields: UpdateReportFieldsInput!
+  ) {
+    updateReport(
+      userId: $userId
+      contextRole: $contextRole
+      reportId: $reportId
+      fields: $fields
+    ) {
+      reportId
+    }
+  }
+
+### UpdateReport
+mutation UpdateReport(
+    $userId: String
+    $contextRole: ContextRoleType
+    $reportId: String!
+    $fields: ExpenseReportFields!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      expenseReport(reportId: $reportId) {
+        updateReport(fields: $fields) {
+          status {
+            success
+          }
+        }
+      }
+    }
+  }
+
+### DeleteExpenseReport
+mutation DeleteExpenseReport(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      expenseReport(reportId: $reportId) {
+        deleteReport {
+          status {
+            success
+          }
+        }
+      }
+    }
+  }
+
+### SaveNewExpenseEntry
+mutation SaveNewExpenseEntry(
+    $reportId: ID!
+    $contextRole: ContextRoleType!
+    $userId: ID!
+    $fields: CreateExpenseFieldsInput!
+    $taxFields: [TaxField!] = null
+    $expenseTypeId: String!
+    $policyId: String!
+    $shouldIncludeRpeKey: Boolean = false
+    $expenseListDetailFormId: String
+    $isTrexEnabled: Boolean!
+    $showAttendeeField: Boolean! = false
+  ) {
+    createExpense(
+      dataContext: {
+        reportId: $reportId
+        fields: $fields
+        taxFields: $taxFields
+        expenseListDetailFormId: $expenseListDetailFormId
+      }
+      userContext: {userId: $userId, contextType: $contextRole}
+    ) {
+      id
+      rpeKey @include(if: $shouldIncludeRpeKey)
+
+      # The following items are needed for the existing entry after save
+      reportDetails @include(if: $isTrexEnabled) {
+        ...ExpenseReportDetailsFragment
+      }
+      entry @include(if: $isTrexEnabled) {
+        ...EreExpenseEntrySummaryFragment
+      }
+      existingExpenseForm @include(if: $isTrexEnabled) {
+        ...ExistingExpenseFormFragment
+      }
+      entryExceptions @include(if: $isTrexEnabled) {
+        ...EreEntryExceptionsFragment
+      }
+      expenseTypeFilters @include(if: $isTrexEnabled) {
+        shouldFilterCashAdvanceExpenseTypes
+        shouldFilterCompanyCarExpenseType
+        shouldFilterPersonalCarExpenseType
+      }
+
+      vehicleRegistrationInfo @include(if: $isTrexEnabled) {
+        hasPersonalCar
+        hasCompanyCar
+      }
+    }
+
+    CDS_addRecentExpenseTypes(
+      policyId: $policyId
+      expenseTypeId: $expenseTypeId
+    )
+  }
+
+fragment ExpenseReportDetailsFragment on ExpenseReportDetails {
+    id
+    allocationFormId
+    reportType
+    userId
+    policy {
+      id
+      allowReceiptAffidavits
+      receiptAffidavitExplanation
+      receiptAffidavitAcceptance
+      expenseListDetailFormId
+      meta {
+        canShowReceipts
+        canUploadImagesToExpenses
+      }
+    }
+    expenseTypes {
+      ...ExpenseTypeFragment
+    }
+    meta {
+      isApproved
+      canReopen
+      isReopened
+      isSubmitted
+      canAddExpense
+      canAllocateExpenses
+      isReceiptImageAvailable
+    }
+    name
+    claimedAmount {
+      value
+      currencyCode
+    }
+    approvedAmount {
+      value
+      currencyCode
+    }
+    reportTotal {
+      value
+      currencyCode
+    }
+    currencyCode
+    countryCode
+    taxConfigId
+  }
+
+fragment ExpenseTypeFragment on ExpenseType {
+    id
+    name
+    itemizationType
+    text
+    header
+    parentName
+    code
+    visibilityCode
+    itemizeStyle
+    shouldAddUserAsDefaultAttendee
+    allowEditAttendeeAmount
+    allowEditAttendeeCount
+    shouldDisplayAttendeeAmounts
+    itemizationWizardId
+    meta {
+      isTravelAllowanceExpense
+      canCombineExpense
+      isItemizationAllowed
+      isItemizationRequired
+      hasItemizationWizard
+      isJapanPublicTransportation
+    }
+  }
+
+fragment EreExpenseEntrySummaryFragment on ExpenseEntrySummary {
+    ...ExpenseEntrySummaryFragment
+    cctReceiptImageId
+    travel {
+      hotelCheckinDate
+      hotelCheckoutDate
+    }
+    itemizations {
+      id
+      attendeeCount
+      allocationState
+      isPersonalExpense
+      approvedAmount {
+        value
+        currencyCode
+      }
+      meta {
+        canDelete
+        hasAllocation
+        hasAttendees
+        hasComments
+        hasExceptions
+        hasBlockingExceptions
+      }
+      expenseType {
+        id
+        code
+        name
+      }
+      rpeKey
+      transactionAmount {
+        value
+        currencyCode
+      }
+      transactionDate
+    }
+  }
+
+fragment ExpenseEntrySummaryFragment on ExpenseEntrySummary {
+    allocationState
+    approvedAmount {
+      value
+      currencyCode
+    }
+    attendeeCount
+    claimedAmount {
+      value
+      currencyCode
+    }
+    eReceiptImageId
+    expenseSourceIdentifiers {
+      eReceiptId
+      expenseCaptureImageId
+      jptRouteId
+      personalCardTransactionId
+      quickExpenseId
+      segmentId
+      segmentTypeId
+      tripId
+      creditCardTransaction {
+        id
+        type
+      }
+    }
+    expenseType {
+      id
+      code
+      name
+      meta {
+        isJapanPublicTransportation
+      }
+    }
+    id
+    isImageRequired
+    isPaperReceiptRequired
+    isPersonalExpense
+    jptRouteId
+    location {
+      city
+      countryCode
+      countrySubDivisionCode
+      id
+      name
+    }
+    meta {
+      canDelete
+      hasAffidavit
+      hasAllocation
+      hasAttendees
+      hasBlockingExceptions
+      hasComments
+      hasExceptions
+      hasItemizations
+      hasReceiptImage
+      hasSource
+      hasXmlReceipt
+      hasSourceCreditCard
+      hasSourceEReceipt
+      hasSourceItinerary
+      hasSourceExpenseIt
+      hasSourceMobile
+      hasSourcePersonalCard
+    }
+    parentExpenseId
+    paymentType {
+      id
+      code
+      name
+    }
+    receiptImageId
+    rpeKey
+    transactionAmount {
+      value
+      currencyCode
+    }
+    postedAmount {
+      value
+      currencyCode
+    }
+    transactionDate
+    vendor {
+      id
+      description
+      name
+    }
+  }
+
+fragment ExistingExpenseFormFragment on ExistingExpenseForm {
+    expenseId
+    expenseTypeId
+    travelRequestEntries {
+      entries {
+        id
+        value
+      }
+    }
+    mainForm(showAttendeeField: $showAttendeeField) {
+      attendeesLinkAccessMode
+      calculateTaxLinkAccessMode
+      fields {
+        ...FormFieldFragment
+      }
+      isFormEditable
+    }
+    meta {
+      canAllocate
+      canDelete
+      hasMixedAllocations
+      hasXmlReceipt
+    }
+    backendMileageConfigs
+    expenseTypeDetails {
+      expenseTypeId
+      quickTips
+    }
+    jptRouteSummary {
+      ...JptRouteSummaryFragment
+    }
+  }
+
+fragment FormFieldFragment on FormField {
+    id
+    label
+    formFieldId
+    value {
+      ...AmountValueFragment
+      ...BooleanValueFragment
+      ...DateValueFragment
+      ...ExchangeRateValueFragment
+      ...ExpenseAmountFragment
+      ...FloatValueFragment
+      ...IntegerValueFragment
+      ...ListItemValueFragment
+      ...ListValueFragment
+      ...LocationValueFragment
+      ...StringValueFragment
+    }
+    accessMode
+    control
+    dataType
+    defaultValue {
+      value
+      code
+      listItemId
+      isValid
+    }
+    sequence
+    maximumLength
+    tooltip
+    hasLineSeparator
+    isCopyDownSource
+    itemizationCopyDownAction
+    isExternalList
+    targetFieldSettings {
+      action
+      formFieldId
+      lhsOperandSource
+      operator
+      rhsOperand
+    }
+    comments {
+      comment
+      creationDate
+      isLatest
+      createdForUserId
+      author {
+        first
+        last
+        preferred
+      }
+    }
+    options {
+      id
+      code
+      value
+    }
+    isRequired
+    list {
+      id
+      level
+      parentId
+      displayFormat
+      defaultSearchBy: searchCriteria
+    }
+    dataValidator {
+      validationExpression
+      failureMessage
+    }
+    requiredForSave
+    taxAuthorityId
+    taxFormId
+    showFieldForCountryCode
+  }
+
+fragment AmountValueFragment on AmountValue {
+    amountValue: value {
+      value
+      currencyCode
+    }
+  }
+
+fragment BooleanValueFragment on BooleanValue {
+    booleanValue: value
+    isValid
+  }
+
+fragment DateValueFragment on DateValue {
+    dateValue: value
+    isValid
+  }
+
+fragment ExchangeRateValueFragment on ExchangeRateValue {
+    value
+    operation
+  }
+
+fragment ExpenseAmountFragment on ExpenseAmount {
+    expenseAmountValue: value
+  }
+
+fragment FloatValueFragment on FloatValue {
+    floatValue: value
+  }
+
+fragment IntegerValueFragment on IntegerValue {
+    integerValue: value
+  }
+
+fragment ListItemValueFragment on ListItemValue {
+    code
+    id
+    listItemValue: value
+  }
+
+fragment ListValueFragment on ListValue {
+    isValid
+    listValue: value {
+      code
+      id
+      value
+    }
+  }
+
+fragment LocationValueFragment on LocationListValue {
+    isValid
+    locationValue: value {
+      id
+      name
+      city
+      value
+      countryCode
+      countrySubDivisionCode
+    }
+  }
+
+fragment StringValueFragment on StringValue {
+    stringValue: value
+  }
+
+fragment JptRouteSummaryFragment on JptRouteSummary {
+    assignment
+    companyId
+    creationDateTime
+    currencyCode
+    distanceUnit
+    documentId
+    entryId
+    eReceiptId
+    fromLocation
+    hasCommuterPassDeduction
+    hasIcCard
+    id
+    isCheap
+    isEasy
+    isFast
+    isEcoFriendly
+    isExpress
+    isIcTicket
+    isLegacyData
+    isRoundTrip
+    lastModifiedDateTime
+    originType
+    routeUUID
+    seatType
+    toLocation
+    totalAdditionalAmount
+    totalAmount
+    totalDistance
+    transactionDate
+    transactionId
+    userId
+  }
+
+fragment EreEntryExceptionsFragment on EntryExceptions {
+    reportId
+    expenseId
+    attendeesExceptionLevel
+    transactionAmount {
+      value
+      currencyCode
+    }
+    transactionDate
+    expenseType {
+      id
+      code
+      name
+      meta {
+        isJapanPublicTransportation
+      }
+    }
+    countOfExceptions
+    hasBlockingExceptions
+    entryExceptions {
+      allocationId
+      exceptionCode
+      expenseId
+      isBlocking
+      message
+      parameters {
+        entryExceptionAttendees {
+          lastName
+          firstName
+          entryAmount
+          crnCode
+          totalExpensed
+          totalAuthorized
+        }
+        missingFields {
+          missingSpecialParentField
+          fields
+          fieldIds
+        }
+      }
+      parentExpenseId
+    }
+    itemizationsExceptions {
+      reportId
+      expenseId
+      attendeesExceptionLevel
+      itemizationId
+      transactionAmount {
+        value
+        currencyCode
+      }
+      transactionDate
+      expenseType {
+        id
+        code
+        name
+        meta {
+          isJapanPublicTransportation
+        }
+      }
+      countOfExceptions
+      hasBlockingExceptions
+      exceptions {
+        allocationId
+        exceptionCode
+        expenseId
+        isBlocking
+        message
+        parameters {
+          entryExceptionAttendees {
+            lastName
+            firstName
+            entryAmount
+            crnCode
+            totalExpensed
+            totalAuthorized
+          }
+          missingFields {
+            missingSpecialParentField
+            fields
+            fieldIds
+          }
+        }
+        parentExpenseId
+      }
+    }
+  }
+
+### UpdateExistingExpenseEntry
+mutation UpdateExistingExpenseEntry(
+    $reportId: ID!
+    $expenseId: ID!
+    $contextRole: ContextRoleType!
+    $userId: ID!
+    $fields: UpdateExpenseFieldsInput!
+    $taxFields: [TaxField!] = null
+    $expenseTypeId: String!
+    $policyId: String!
+    $updateRecentExpenseType: Boolean!
+    $shouldCopyDownFields: Boolean!
+    $isTrexEnabled: Boolean!
+    $expenseListDetailFormId: String
+    $showAttendeeField: Boolean! = false
+  ) {
+    updateExpense(
+      dataContext: {
+        reportId: $reportId
+        expenseId: $expenseId
+        fields: $fields
+        taxFields: $taxFields
+        shouldCopyDownFields: $shouldCopyDownFields
+        expenseListDetailFormId: $expenseListDetailFormId
+      }
+      userContext: {userId: $userId, contextType: $contextRole}
+    ) {
+      id
+      # The following items are needed for the existing entry after save
+      reportDetails @include(if: $isTrexEnabled) {
+        ...ExpenseReportDetailsFragment
+      }
+      entry @include(if: $isTrexEnabled) {
+        ...EreExpenseEntrySummaryFragment
+      }
+      existingExpenseForm @include(if: $isTrexEnabled) {
+        ...ExistingExpenseFormFragment
+      }
+      entryExceptions @include(if: $isTrexEnabled) {
+        ...EreEntryExceptionsFragment
+      }
+      expenseTypeFilters @include(if: $isTrexEnabled) {
+        shouldFilterCashAdvanceExpenseTypes
+        shouldFilterCompanyCarExpenseType
+        shouldFilterPersonalCarExpenseType
+      }
+    }
+
+    CDS_addRecentExpenseTypes(
+      policyId: $policyId
+      expenseTypeId: $expenseTypeId
+    ) @include(if: $updateRecentExpenseType)
+  }
+
+### DeleteExpenseEntries
+mutation DeleteExpenseEntries(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $expenseIds: [String!]
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      expenseReport(reportId: $reportId) {
+        deleteExpenseEntries(expenseIds: $expenseIds) {
+          status {
+            success
+          }
+        }
+      }
+    }
+  }
+
+### MoveAvailableExpensesToReport
+mutation MoveAvailableExpensesToReport(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $ids: [String!]!
+    $reportId: String!
+    $params: AvailableExpensesQueryParams
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      moveAvailableExpensesToReport(ids: $ids, reportId: $reportId) {
+        status {
+          success
+        }
+        errors
+        availableExpensesWithPagination(params: $params) {
+          availableExpenses {
+            ...AvailableExpensesFragment
+          }
+          pagination {
+            number
+            size
+            totalElements
+            totalPages
+          }
+          hasCBSAccount
+        }
+      }
+    }
+  }
+
+fragment AvailableExpensesFragment on AvailableExpenseSummary {
+    id
+    confirmationCode
+    exchangeRate
+    expenseType {
+      id
+      name
+      code
+      meta {
+        isJapanPublicTransportation
+      }
+    }
+    location {
+      id
+      name
+      city
+      countrySubDivisionCode
+      countryCode
+    }
+    paymentType {
+      id
+      name
+      code
+    }
+    transactionDate
+    vendor
+    estimatedAmount {
+      currencyCode
+      value
+    }
+    postedAmount {
+      currencyCode
+      value
+    }
+    transactionAmount {
+      currencyCode
+      value
+    }
+    creditCard {
+      cardLastSegment
+      hasRichData
+      creditCardAccountId
+      creditCardTransactionId
+      isCBSAccount
+    }
+    eReceipt {
+      eReceiptId
+      receiptImageId
+    }
+    personalCard {
+      personalCardAccountId
+      personalCardTransactionId
+    }
+    quickExpense {
+      quickExpenseId
+    }
+    receiptCapture {
+      receiptCaptureId
+    }
+    tripSegment {
+      confirmationCode
+      segmentId
+      segmentType
+      tripId
+    }
+    receiptImageId
+    unifiedReceiptImageId
+    meta {
+      canUnmatch
+      hasEditableFields
+      hasSourceCreditCard
+      hasSourcePersonalCard
+      hasSourceEReceipt
+      hasSourceAttendees
+      hasSourceExpenseIt
+      hasSourceItinerary
+      hasSourceMobile
+      hasSource
+      missingData
+    }
+    isRTA
+  }
+
+### DeleteAvailableExpenses
+mutation DeleteAvailableExpenses(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $ids: [String!]!
+    $params: AvailableExpensesQueryParams
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      deleteAvailableExpenses(ids: $ids) {
+        status {
+          success
+        }
+        availableExpensesWithPagination(params: $params) {
+          availableExpenses {
+            ...AvailableExpensesFragment
+          }
+          pagination {
+            number
+            size
+            totalElements
+            totalPages
+          }
+          hasCBSAccount
+        }
+      }
+    }
+  }
+
+### SubmitExpenseReport
+mutation SubmitExpenseReport(
+    $contextRole: CDS_SmartExpenseContextTypes!
+    $reportId: ID!
+    $userId: ID
+    $reportSource: CDS_ReportSource
+    $validate: Boolean
+    $approverValidated: Boolean
+  ) {
+    CDS_expense {
+      report {
+        submit(
+          contextType: $contextRole
+          id: $reportId
+          userId: $userId
+          validate: $validate
+          reportSource: $reportSource
+          approverValidated: $approverValidated
+        ) {
+          status
+        }
+      }
+    }
+  }
+
+### RecallReport
+mutation RecallReport(
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $userId: String!
+  ) {
+    recallReport(
+      reportId: $reportId
+      contextRole: $contextRole
+      userId: $userId
+    ) {
+      id
+      meta {
+        isApproved
+        isSubmitted
+        isReopened
+        isSentForPayment
+        isNotPaid
+        isSentBack
+        isPendingDelegatorReview
+        canRecall
+        canAddExpense
+        canReopen
+      }
+      submitDate
+      approvalStatus
+      paymentStatus
+    }
+  }
+
+### CreateNewReportComment
+mutation CreateNewReportComment(
+    $userId: String!
+    $reportId: String!
+    $contextRole: ContextRoleType!
+    $comment: String!
+  ) {
+    createNewReportComment(
+      userId: $userId
+      contextRole: $contextRole
+      reportId: $reportId
+      comment: $comment
+    ) {
+      status {
+        success
+      }
+      timelineSummary {
+        ...TimelineSummaryFragment
+      }
+    }
+  }
+
+fragment TimelineSummaryFragment on TimelineSummary {
+    summaryDate
+    summaryItems {
+      id
+      action
+      authorName
+      createdForEmployeeName
+      comment
+      commentSource
+      commentType
+      creationDate
+      expenseType
+      isDelegateSubmission
+      transactionDate
+      transactionAmount {
+        value
+        currencyCode
+      }
+      viewLink
+    }
+  }
+
+### AttachImage
+mutation AttachImage(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $expenseId: String!
+    $imageId: String!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      expenseReport(reportId: $reportId) {
+        entry(expenseId: $expenseId) {
+          attachImage(imageId: $imageId) {
+            id
+            receiptImageId
+          }
+        }
+      }
+    }
+  }
+
+### DetachImage
+mutation DetachImage(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $expenseId: String!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      expenseReport(reportId: $reportId) {
+        entry(expenseId: $expenseId) {
+          detachImage {
+            id
+            receiptImageId
+          }
+        }
+      }
+    }
+  }
+
+### AppendImage
+mutation AppendImage(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $expenseId: String!
+    $imageId: String!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      expenseReport(reportId: $reportId) {
+        entry(expenseId: $expenseId) {
+          appendImage(imageId: $imageId) {
+            id
+            receiptImageId
+          }
+        }
+      }
+    }
+  }
+
+### DeleteReceipt
+mutation DeleteReceipt($imageId: String!) {
+    deleteReceipt(imageId: $imageId)
+  }
+
+### CopyExpenseEntry
+mutation CopyExpenseEntry(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $expenseId: String!
+    $expenseListDetailFormId: String
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      expenseReport(reportId: $reportId) {
+        copyExpenseEntry(
+          expenseId: $expenseId
+          expenseListDetailFormId: $expenseListDetailFormId
+        ) {
+          status {
+            success
+          }
+          expenseId
+          reportEntriesDetails {
+            ...EntriesAndColumnsFragment
+          }
+        }
+      }
+    }
+  }
+
+fragment EntriesAndColumnsFragment on ReportEntriesDetails {
+    reportId
+    columns {
+      formFieldId
+      dataType
+      fieldName
+    }
+    entries {
+      ...EntryDetailsForList
+    }
+  }
+
+fragment EntryDetailsForList on ReportEntryDetails {
+    expenseId
+    summary {
+      ...ExpenseEntrySummaryFragment
+    }
+    values {
+      fieldName
+      formFieldId
+      value {
+        ...AmountValueFragment
+        ...BooleanValueFragment
+        ...DateValueFragment
+        ...ExchangeRateValueFragment
+        ...ExpenseAmountFragment
+        ...FloatValueFragment
+        ...IntegerValueFragment
+        ...ListItemValueFragment
+        ...ListValueFragment
+        ...LocationValueFragment
+        ...StringValueFragment
+      }
+    }
+  }
+
+### MoveExpense
+mutation MoveExpense(
+    $contextRole: CDS_ExpenseAllocationType
+    $userId: ID
+    $fromReportId: ID!
+    $toReportId: ID!
+    $expenseIds: [String]
+  ) {
+    CDS_expense {
+      move(
+        contextType: $contextRole
+        userId: $userId
+        fromReportId: $fromReportId
+        toReportId: $toReportId
+        expenseIds: $expenseIds
+      ) {
+        success
+        response {
+          success {
+            id
+            uri
+          }
+          error {
+            id
+            errorId
+            errorMessage
+            validationErrors {
+              id
+              message
+              source
+            }
+          }
+        }
+      }
+    }
+  }
+
+### GetNewReportFormFields
+query GetNewReportFormFields(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $policyId: String
+  ) {
+    newReportForm(
+      contextRole: $contextRole
+      policyId: $policyId
+      userId: $userId
+    ) {
+      fields {
+        ...FormFieldFragment
+      }
+      policyId
+    }
+  }
+
+### GetNewExpenseEntry
+query GetNewExpenseEntry(
+    $reportId: String!
+    $userId: String!
+    $reportIdAsID: ID!
+    $userIdAsID: ID!
+    $expenseTypeId: ID!
+    $contextRole: ContextRoleType!
+    $shouldFetchExpenseForm: Boolean! = true
+    $expenseTypeChangeContext: ExpenseTypeChangeNewExpenseContext
+    $showAttendeeField: Boolean! = false
+  ) {
+    expenseTypeFilters(
+      userId: $userId
+      contextRole: $contextRole
+      reportId: $reportId
+    ) {
+      shouldFilterCashAdvanceExpenseTypes
+      shouldFilterCompanyCarExpenseType
+      shouldFilterPersonalCarExpenseType
+    }
+
+    vehicleRegistrationInfo {
+      hasPersonalCar
+      hasCompanyCar
+    }
+
+    employee(userId: $userId, contextRole: $contextRole) {
+      userId
+      contextRole
+      expenseReport(reportId: $reportId) {
+        reportId
+        rptKey
+        reportDetails {
+          id
+          allocationFormId
+          userId
+          policy {
+            id
+            expenseListDetailFormId
+            meta {
+              canUploadImagesToExpenses
+              canShowReceipts
+            }
+          }
+
+          expenseTypes {
+            ...ExpenseTypeFragment
+          }
+
+          meta {
+            isApproved
+            canReopen
+            isReopened
+            isSubmitted
+            canAddExpense
+            canAllocateExpenses
+            isReceiptImageAvailable
+          }
+
+          name
+
+          approvedAmount {
+            value
+            currencyCode
+          }
+
+          currencyCode
+          countryCode
+          taxConfigId
+        }
+      }
+    }
+
+    # Requested here to pre-fetch the data on the cache (if should fetch at all)
+    # and to deal with a wrong ExpenseTypeId
+    newExpenseForm(
+      dataContext: {
+        reportId: $reportIdAsID
+        expenseTypeId: $expenseTypeId
+        expenseTypeChangeContext: $expenseTypeChangeContext
+      }
+      userContext: {userId: $userIdAsID, contextType: $contextRole}
+    ) @include(if: $shouldFetchExpenseForm) {
+      travelRequestEntries {
+        entries {
+          id
+          value
+        }
+      }
+      mainForm(showAttendeeField: $showAttendeeField) {
+        attendeesLinkAccessMode
+        calculateTaxLinkAccessMode
+        fields {
+          ...FormFieldFragment
+        }
+      }
+      meta {
+        canAllocate
+      }
+      expenseTypeDetails {
+        quickTips
+      }
+      backendMileageConfigs
+    }
+  }
+
+### GetExistingExpenseEntry
+query GetExistingExpenseEntry(
+    $expenseId: String!
+    $reportId: String!
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $expenseIdAsID: ID!
+    $reportIdAsID: ID!
+    $userIdAsID: ID!
+    $shouldFetchExpenseForm: Boolean! = true
+    $shouldFetchReportExceptions: Boolean! = false
+    $expenseTypeChangeContext: ExpenseTypeChangeExistingExpenseContext
+    $isBondUser: Boolean! = false
+    $showAttendeeField: Boolean! = false
+  ) {
+    expenseTypeFilters(
+      userId: $userId
+      contextRole: $contextRole
+      reportId: $reportId
+      expenseId: $expenseId
+    ) {
+      shouldFilterCashAdvanceExpenseTypes
+      shouldFilterCompanyCarExpenseType
+      shouldFilterPersonalCarExpenseType
+    }
+
+    vehicleRegistrationInfo {
+      hasPersonalCar
+      hasCompanyCar
+    }
+
+    entryExceptions(
+      expenseId: $expenseId
+      reportId: $reportId
+      userId: $userId
+      contextRole: $contextRole
+    ) {
+      ...EreEntryExceptionsFragment
+    }
+
+    employee(userId: $userId, contextRole: $contextRole) {
+      userId
+      contextRole
+      expenseReport(reportId: $reportId) {
+        reportId
+        rptKey
+        reportDetails {
+          ...ExpenseReportDetailsFragment
+        }
+        entry(expenseId: $expenseId) {
+          ...EreExpenseEntrySummaryFragment
+          meta {
+            isAiAssisted @include(if: $isBondUser)
+          }
+        }
+      }
+    }
+
+    existingExpenseForm(
+      dataContext: {
+        expenseId: $expenseIdAsID
+        reportId: $reportIdAsID
+        expenseTypeChangeContext: $expenseTypeChangeContext
+      }
+      userContext: {userId: $userIdAsID, contextType: $contextRole}
+    ) @include(if: $shouldFetchExpenseForm) {
+      ...ExistingExpenseFormFragment
+    }
+
+    reportExceptions(
+      reportId: $reportId
+      userId: $userId
+      contextRole: $contextRole
+    ) @include(if: $shouldFetchReportExceptions) {
+      ...ReportExceptionsFragment
+    }
+  }
+
+fragment ReportExceptionsFragment on ReportExceptions {
+    reportId
+    countOfExceptions
+    hasBlockingExceptions
+
+    reportExceptions {
+      allocationId
+      exceptionCode
+      expenseId
+      parentExpenseId
+      isBlocking
+      message
+      parameters {
+        entryExceptionAttendees {
+          lastName
+          firstName
+          entryAmount
+          crnCode
+          totalExpensed
+          totalAuthorized
+        }
+        missingFields {
+          missingSpecialParentField
+          fields
+          fieldIds
+        }
+      }
+    }
+
+    entryExceptions {
+      ...EntryExceptionsFragment
+    }
+  }
+
+fragment EntryExceptionsFragment on EntryExceptions {
+    reportId
+    expenseId
+    attendeesExceptionLevel
+    countOfExceptions
+    hasBlockingExceptions
+    transactionAmount {
+      value
+      currencyCode
+    }
+    transactionDate
+    expenseType {
+      id
+      code
+      name
+      meta {
+        isJapanPublicTransportation
+      }
+    }
+    entryExceptions {
+      ...EntryExceptionFragment
+    }
+    itemizationsExceptions {
+      reportId
+      expenseId
+      itemizationId
+      attendeesExceptionLevel
+      countOfExceptions
+      hasBlockingExceptions
+      transactionAmount {
+        value
+        currencyCode
+      }
+      transactionDate
+      expenseType {
+        id
+        code
+        name
+        meta {
+          isJapanPublicTransportation
+        }
+      }
+      exceptions {
+        ...EntryExceptionFragment
+      }
+    }
+  }
+
+fragment EntryExceptionFragment on ExpenseEntryException {
+    allocationId
+    exceptionCode
+    expenseId
+    isBlocking
+    message
+    parentExpenseId
+    parameters {
+      entryExceptionAttendees {
+        lastName
+        firstName
+        entryAmount
+        crnCode
+        totalExpensed
+        totalAuthorized
+      }
+      missingFields {
+        missingSpecialParentField
+        fields
+        fieldIds
+      }
+    }
+  }
+
+### GetExpenseTypesForReport
+query GetExpenseTypesForReport(
+    $userId: ID!
+    $contextRole: ContextRoleType!
+    $policyId: ID!
+    $reportId: ID!
+    $reportOwnerUserId: ID!
+  ) {
+    CDS_expense {
+      recentExpenseTypes(policyId: $policyId) {
+        id
+      }
+    }
+
+    expenseTypesForReport(
+      userId: $userId
+      contextRole: $contextRole
+      policyId: $policyId
+      reportId: $reportId
+      reportOwnerUserId: $reportOwnerUserId
+    ) {
+      id
+      code
+      name
+      parentName
+      description
+      text
+      header
+      visibilityCode
+    }
+
+    vehicleRegistrationInfo {
+      hasPersonalCar
+      hasCompanyCar
+    }
+    siteSettings {
+      isMileageServiceEnabled
+      allowJptPublicSectorEnhancement
+    }
+  }
+
+### GetPaymentTypes
+query GetPaymentTypes($reportOwnerUserId: String) {
+    paymentTypes(reportOwnerUserId: $reportOwnerUserId) {
+      paymentTypeId
+      paymentTypeName
+      isPrePopulatedOnly
+    }
+  }
+
+### GetLineItemImage
+query GetLineItemImage(
+    $userId: String!
+    $reportOwnerUserId: String
+    $contextRole: ContextRoleType!
+    $imageId: String!
+    $reportId: String = null
+    $imageOrigin: ImageType = null
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      userId
+      contextRole
+      lineItemImage(imageId: $imageId, reportOwnerUserId: $reportOwnerUserId) {
+        imageId
+        receiptId
+        fileType
+        #imageType
+        imageDate
+        fileName
+        imageOrigin
+        imageUrl
+        #protImageId
+        thumbUrl
+        receiptDigitizationStatus
+        complianceCountryCode
+        complianceType
+        timestamp {
+          ...EbunshoTimestampFragment
+        }
+        meta(reportId: $reportId, imageOrigin: $imageOrigin) {
+          ...LegacyReceiptMetadataFragment
+        }
+      }
+    }
+  }
+
+fragment EbunshoTimestampFragment on EbunshoTimestamp {
+    status
+    resolution
+    colorDepth
+    timestampDate
+  }
+
+fragment LegacyReceiptMetadataFragment on LegacyReceiptMetadata {
+    isEbunshoReceipt
+    canAppendReceipt
+    canDetachReceipt
+    canReplaceReceipt
+    canDownloadReceipt
+    canDeleteReceipt
+    canSaveReceiptRotation
+    isAllowedForMultipleUse
+  }
+
+### GetLineItemImages
+query GetLineItemImages(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      userId
+      contextRole
+      expenseReport(reportId: $reportId) {
+        reportId
+        lineItemImages {
+          ...LegacyReceiptFragment
+        }
+      }
+    }
+  }
+
+fragment LegacyReceiptFragment on LegacyReceipt {
+    imageId
+    receiptId
+    fileType
+    #imageType
+    imageDate
+    fileName
+    imageOrigin
+    imageUrl
+    #protImageId
+    thumbUrl
+    timestamp {
+      ...EbunshoTimestampFragment
+    }
+    receiptDigitizationStatus
+    complianceCountryCode
+    complianceType
+    meta {
+      ...LegacyReceiptMetadataFragment
+    }
+  }
+
+### GetAvailableReceipts
+query GetAvailableReceipts(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $deleteEbunshoFlagEnabled: Boolean
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      userId
+      contextRole
+      availableReceipts(deleteEbunshoFlagEnabled: $deleteEbunshoFlagEnabled) {
+        ...LegacyReceiptFragment
+      }
+    }
+  }
+
+### GetTripDetails
+query GetTripDetails(
+    $userId: String!
+    $tripId: String
+    $segmentId: String!
+    $segmentType: TripSegmentType
+    $reportId: String
+  ) {
+    employee(userId: $userId) {
+      userId
+      contextRole
+      tripDetails( # er.TripData.getTripSegmentJson
+        tripId: $tripId
+        segmentId: $segmentId
+        segmentType: $segmentType
+        reportId: $reportId
+      ) {
+        tripId
+        tripName
+        tripDescription
+        ticketNumber
+        startDate
+        endDate
+        userId
+        transactionDate
+        comparisonFare {
+          value
+          currencyCode
+        }
+        ruleViolations {
+          companyReasonCode
+          violationReasonCode
+          description
+        }
+        estimatedAmount {
+          value
+          currencyCode
+        }
+        transactionAmount {
+          value
+          currencyCode
+        }
+        vendorDescription
+        taxiSegment {
+          vendor
+          startDateTime
+          endDateTime
+          rate {
+            value
+            currencyCode
+          }
+          pickupLocation {
+            streetAddress
+            city
+            stateCode
+            countryCode
+            postalCode
+          }
+          dropoffLocation {
+            streetAddress
+            city
+            stateCode
+            countryCode
+            postalCode
+          }
+          reservationId
+        }
+        limoSegment {
+          vendor
+          startDateTime
+          endDateTime
+          rate {
+            value
+            currencyCode
+          }
+          pickupLocation {
+            streetAddress
+            city
+            stateCode
+            countryCode
+            postalCode
+          }
+          dropoffLocation {
+            streetAddress
+            city
+            stateCode
+            countryCode
+            postalCode
+          }
+          reservationId
+        }
+        hotelSegment {
+          propertyName
+          vendor
+          numberRooms
+          numberOfNights
+          rate {
+            value
+            currencyCode
+          }
+          startDate
+          endDate
+        }
+        carSegment {
+          vendor
+          rate {
+            value
+            currencyCode
+          }
+          pickupLocation
+          startDateTime
+          endDateTime
+        }
+        ticketSegments {
+          carrier
+          ticketId
+          flightNumber
+          departureDateTime
+          boardPoint
+          offPoint
+        }
+      }
+    }
+  }
+
+### GetExpenseEntryComments
+query GetExpenseEntryComments(
+    $reportId: String!
+    $expenseId: String!
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $hasItemizations: Boolean
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      userId
+      contextRole
+      expenseReport(reportId: $reportId) {
+        reportId
+        entry(expenseId: $expenseId) {
+          id
+          entryComments(hasItemizations: $hasItemizations) {
+            author {
+              firstName
+              middleInitial
+              lastName
+              preferredName
+            }
+            comment
+            createdForEmployeeId
+            createdForEmployee {
+              firstName
+              middleInitial
+              lastName
+              preferredName
+            }
+            creationDate
+            expenseId
+            isLatest
+            isItemization
+            expenseType {
+              name
+            }
+            amount {
+              currencyCode
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+
+### GetApproversList
+query GetApproversList(
+    $reportId: String!
+    $stepId: String!
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $searchField: ApproverSearchField
+    $searchText: String
+  ) {
+    approversList(
+      reportId: $reportId
+      userId: $userId
+      contextRole: $contextRole
+      stepId: $stepId
+      searchField: $searchField
+      searchText: $searchText
+    ) {
+      emailAddress
+      employeeId
+      firstName
+      lastName
+      preferredName
+      loginId
+      middleInitial
+      nameDetail {
+        fieldName
+        value
+      }
+      userId
+    }
+  }
