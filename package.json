@@ -1,6 +1,6 @@
 {
   "name": "@chrischall/concur-mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "mcpName": "io.github.chrischall/concur-mcp",
   "description": "Unofficial SAP Concur MCP server for Claude — expense reports, expenses, receipts and trips — developed and maintained by AI (Claude Code)",
