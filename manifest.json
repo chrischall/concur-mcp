@@ -47,7 +47,156 @@
       "required": false
     }
   },
-  "tools": [],
+  "tools": [
+    {
+      "name": "concur_healthcheck",
+      "description": "Check the Concur session: which source supplied the token, whether the API accepted it, and round-trip time"
+    },
+    {
+      "name": "concur_whoami",
+      "description": "Your Concur user id, datacenter, minutes until the session token expires, and enabled features"
+    },
+    {
+      "name": "concur_list_expense_types",
+      "description": "List the expense types a report's policy allows (id, name, group)"
+    },
+    {
+      "name": "concur_list_payment_types",
+      "description": "List the payment types you can put on an expense (cash, company card, …)"
+    },
+    {
+      "name": "concur_list_currencies",
+      "description": "List the currencies Concur accepts, optionally filtered by code or name"
+    },
+    {
+      "name": "concur_search_locations",
+      "description": "Search Concur expense locations by city (optionally country / subdivision)"
+    },
+    {
+      "name": "concur_list_reports",
+      "description": "List your expense reports by status and date range, with totals, approval and payment status"
+    },
+    {
+      "name": "concur_get_report",
+      "description": "Get one expense report: header, every expense entry, and its exceptions"
+    },
+    {
+      "name": "concur_get_report_timeline",
+      "description": "Get a report's timeline (comments and workflow events) and audit trail"
+    },
+    {
+      "name": "concur_get_expense",
+      "description": "Get one expense entry with its form fields, itemizations, receipt and exceptions"
+    },
+    {
+      "name": "concur_list_available_expenses",
+      "description": "List available expenses (card transactions, e-receipts, mobile captures) not yet on a report"
+    },
+    {
+      "name": "concur_create_report",
+      "description": "Create a new unsubmitted expense report (confirmation-gated)"
+    },
+    {
+      "name": "concur_update_report",
+      "description": "Change an unsubmitted report's header fields (confirmation-gated)"
+    },
+    {
+      "name": "concur_delete_report",
+      "description": "Permanently delete an unsubmitted report and its expenses (confirmation-gated)"
+    },
+    {
+      "name": "concur_add_report_comment",
+      "description": "Add a permanent comment to a report, visible to approvers (confirmation-gated)"
+    },
+    {
+      "name": "concur_submit_report",
+      "description": "Submit a report to your approver (confirmation-gated)"
+    },
+    {
+      "name": "concur_recall_report",
+      "description": "Recall a submitted, not-yet-approved report back to unsubmitted (confirmation-gated)"
+    },
+    {
+      "name": "concur_create_expense",
+      "description": "Add an expense to an unsubmitted report (confirmation-gated)"
+    },
+    {
+      "name": "concur_update_expense",
+      "description": "Change an expense on an unsubmitted report (confirmation-gated)"
+    },
+    {
+      "name": "concur_delete_expenses",
+      "description": "Permanently delete expenses from an unsubmitted report (confirmation-gated)"
+    },
+    {
+      "name": "concur_copy_expense",
+      "description": "Duplicate an expense on an unsubmitted report (confirmation-gated)"
+    },
+    {
+      "name": "concur_move_available_expenses_to_report",
+      "description": "Move available expenses onto an unsubmitted report (confirmation-gated)"
+    },
+    {
+      "name": "concur_delete_available_expenses",
+      "description": "Permanently delete available expenses not on any report (confirmation-gated)"
+    },
+    {
+      "name": "concur_list_available_receipts",
+      "description": "List receipt images in your receipt store that are not attached to an expense"
+    },
+    {
+      "name": "concur_get_receipt",
+      "description": "Download a receipt image to a local file (or inline)"
+    },
+    {
+      "name": "concur_upload_receipt",
+      "description": "Upload a png/jpg/pdf receipt from an allowed local folder (confirmation-gated)"
+    },
+    {
+      "name": "concur_attach_receipt",
+      "description": "Attach a stored receipt image to an expense that has none (confirmation-gated)"
+    },
+    {
+      "name": "concur_append_receipt",
+      "description": "Add a stored receipt image as an extra page of an expense's receipt (confirmation-gated)"
+    },
+    {
+      "name": "concur_detach_receipt",
+      "description": "Take the receipt image off an expense (confirmation-gated)"
+    },
+    {
+      "name": "concur_delete_receipt",
+      "description": "Permanently delete an unattached receipt image (confirmation-gated)"
+    },
+    {
+      "name": "concur_list_trips",
+      "description": "List your Concur Travel trips (upcoming, past or all)"
+    },
+    {
+      "name": "concur_get_trip",
+      "description": "Get one trip with its flight, hotel, car and rail bookings"
+    },
+    {
+      "name": "concur_get_trip_history",
+      "description": "Get a trip's history: changes, approvals and itinerary emails"
+    },
+    {
+      "name": "concur_send_itinerary",
+      "description": "Email a trip's itinerary to recipients (confirmation-gated)"
+    },
+    {
+      "name": "concur_graphql_query",
+      "description": "Run a raw read-only GraphQL query against Concur (escape hatch)"
+    },
+    {
+      "name": "concur_graphql_mutation",
+      "description": "Run a raw GraphQL mutation against Concur (escape hatch, confirmation-gated)"
+    },
+    {
+      "name": "concur_list_operations",
+      "description": "List the GraphQL operations the Concur web app uses, for the escape hatches"
+    }
+  ],
   "compatibility": {
     "platforms": [
       "darwin",

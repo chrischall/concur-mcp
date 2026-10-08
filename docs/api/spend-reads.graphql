@@ -2088,3 +2088,12 @@ query GetUserPermissions($cftInputs: [CDS_CftFeatureInput]!) {
       }
     }
   }
+
+### GetExpenseTimelineSummary
+query GetExpenseTimelineSummary($userId: String!, $reportId: String!, $contextRole: ContextRoleType!) {
+  timelineSummary(userId: $userId, reportId: $reportId, contextRole: $contextRole) { ...TimelineSummaryFragment }
+}
+fragment TimelineSummaryFragment on TimelineSummary {
+  summaryDate
+  summaryItems { id action authorName createdForEmployeeName comment commentSource commentType creationDate expenseType isDelegateSubmission transactionDate transactionAmount { value currencyCode } viewLink }
+}

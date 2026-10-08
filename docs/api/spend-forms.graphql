@@ -1,0 +1,207 @@
+# Extracted 2026-10-08 from the public expense bundles (scripts/extract-ops.mjs).
+# GetListItems variables, as the web app builds them for a list-valued form field:
+#   { listInformation: { id: field.list.id, parentListItemId: <parent level item id | null>,
+#     searchBy: field.list.defaultSearchBy, searchByCriteria: <typed text | "*"> } }
+# SubmitExpenseReport: contextRole is CDS_SmartExpenseContextTypes (TRAVELER | PROXY); the UI
+# calls it with validate: true, approverValidated: false, reportSource: "WEB".
+
+### GetReportFormFields
+query GetReportFormFields(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+  ) {
+    existingReportForm(
+      contextRole: $contextRole
+      reportId: $reportId
+      userId: $userId
+    ) {
+      fields {
+        ...FormFieldFragment
+      }
+      policyId
+    }
+  }
+
+fragment FormFieldFragment on FormField {
+    id
+    label
+    formFieldId
+    value {
+      ...AmountValueFragment
+      ...BooleanValueFragment
+      ...DateValueFragment
+      ...ExchangeRateValueFragment
+      ...ExpenseAmountFragment
+      ...FloatValueFragment
+      ...IntegerValueFragment
+      ...ListItemValueFragment
+      ...ListValueFragment
+      ...LocationValueFragment
+      ...StringValueFragment
+    }
+    accessMode
+    control
+    dataType
+    defaultValue {
+      value
+      code
+      listItemId
+      isValid
+    }
+    sequence
+    maximumLength
+    tooltip
+    hasLineSeparator
+    isCopyDownSource
+    itemizationCopyDownAction
+    isExternalList
+    targetFieldSettings {
+      action
+      formFieldId
+      lhsOperandSource
+      operator
+      rhsOperand
+    }
+    comments {
+      comment
+      creationDate
+      isLatest
+      createdForUserId
+      author {
+        first
+        last
+        preferred
+      }
+    }
+    options {
+      id
+      code
+      value
+    }
+    isRequired
+    list {
+      id
+      level
+      parentId
+      displayFormat
+      defaultSearchBy: searchCriteria
+    }
+    dataValidator {
+      validationExpression
+      failureMessage
+    }
+    requiredForSave
+    taxAuthorityId
+    taxFormId
+    showFieldForCountryCode
+  }
+
+fragment AmountValueFragment on AmountValue {
+    amountValue: value {
+      value
+      currencyCode
+    }
+  }
+
+fragment BooleanValueFragment on BooleanValue {
+    booleanValue: value
+    isValid
+  }
+
+fragment DateValueFragment on DateValue {
+    dateValue: value
+    isValid
+  }
+
+fragment ExchangeRateValueFragment on ExchangeRateValue {
+    value
+    operation
+  }
+
+fragment ExpenseAmountFragment on ExpenseAmount {
+    expenseAmountValue: value
+  }
+
+fragment FloatValueFragment on FloatValue {
+    floatValue: value
+  }
+
+fragment IntegerValueFragment on IntegerValue {
+    integerValue: value
+  }
+
+fragment ListItemValueFragment on ListItemValue {
+    code
+    id
+    listItemValue: value
+  }
+
+fragment ListValueFragment on ListValue {
+    isValid
+    listValue: value {
+      code
+      id
+      value
+    }
+  }
+
+fragment LocationValueFragment on LocationListValue {
+    isValid
+    locationValue: value {
+      id
+      name
+      city
+      value
+      countryCode
+      countrySubDivisionCode
+    }
+  }
+
+fragment StringValueFragment on StringValue {
+    stringValue: value
+  }
+
+### GetListItems
+query GetListItems($listInformation: CDS_InputListInformation!) {
+    CDS_spend {
+      list(listInformation: $listInformation) {
+        page {
+          totalPages
+        }
+        isExternal
+        items {
+          code
+          id
+          matchValue
+          serviceVersion
+          shortCode
+          value
+        }
+      }
+    }
+  }
+
+### GetFormListItems
+query GetFormListItems(
+    $sessionId: ID
+    $listInformation: CDS_InputListInformation!
+    $includeTotalPages: Boolean = true
+  ) {
+    CDS_spend {
+      list(sessionId: $sessionId, listInformation: $listInformation) {
+        isExternal
+        page @include(if: $includeTotalPages) {
+          totalPages
+        }
+        items {
+          id
+          matchValue
+          serviceVersion
+          code
+          shortCode
+          value
+        }
+      }
+    }
+  }

@@ -581,3 +581,699 @@ query loadTripActivities($tripId: ID!) {
             }
         }
     }
+
+## Refused by concur_graphql_mutation (out of scope — kept so the deny-list fields are traceable)
+# Extracted 2026-10-08 from the public trip bundle (scripts/extract-ops.mjs). Fragments they spread
+# (nextOperation, tripConflict, meetingMatch, configurableMessage, workItem) are not resolved here.
+
+### holdTrip
+mutation holdTrip($tripId: ID!) {
+        travel {
+            trip {
+                hold(tripId: $tripId) {
+                    ... on TravelTripHoldSuccessResult {
+                        tripId
+                    }
+                    ... on TravelErrorResponse {
+                        messages {
+                            ...message
+                        }
+                    }
+                    ... on TravelTripHoldCannotHoldResult {
+                        cannotHoldReason
+                    }
+                }
+            }
+        }
+    }
+
+### confirmTrip
+mutation confirmTrip($tripId: ID!) {
+        travel {
+            trip {
+                confirmV2(tripId: $tripId) {
+                    ... on TravelTripConfirmSuccessResult {
+                        tripId
+                    }
+                    ... on TravelTripCannotConfirmResult {
+                        cannotConfirmReason
+                    }
+                    ... on TravelErrorResponse {
+                        messages {
+                            ...message
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+### commitChange
+mutation commitChange($input: TravelTripCommitChangeInput!) {
+        travel {
+            trip {
+                commitChange(input: $input) {
+                    messages {
+                        ...message
+                    }
+                }
+            }
+        }
+    }
+
+### saveBookingSelections
+mutation saveBookingSelections($tripId: ID!, $bookingId: ID!, $selections: TravelAirSaveBookingSelections!) {
+        travel {
+            air {
+                saveBookingSelections(tripId: $tripId, bookingId: $bookingId, selections: $selections) {
+                    booking {
+                        ...tripAirBooking
+                    }
+                    messages {
+                        code
+                        type
+                    }
+                }
+            }
+        }
+    }
+
+### startSearch
+mutation startSearch($tripPlanId: ID!) {
+        travel {
+            trip {
+                tripPlan(id: $tripPlanId) {
+                    startSearch {
+                        ... on TravelTripPlanStartSearchSuccessResult {
+                            nextOperation {
+                                ...nextOperation
+                            }
+                            tripConflicts {
+                                ...tripConflict
+                            }
+                            meetingMatches {
+                                ...meetingMatch
+                            }
+                            configurableMessages {
+                                ...configurableMessage
+                            }
+                            messages {
+                                ...message
+                            }
+                        }
+                        ... on TravelErrorResponse {
+                            messages {
+                                ...message
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+### processApproval
+mutation processApproval($input: TravelApprovalProcessApprovalInput!) {
+        travel {
+            approval {
+                processApproval(input: $input) {
+                    approverMessage {
+                        title
+                        description
+                    }
+                }
+            }
+        }
+    }
+
+### updateWorkItemStatus
+mutation updateWorkItemStatus(
+        $workItemId: ID!
+        $status: TravelTripDelegatesDashboardWorkItemStatus!
+        $assigneeId: ID
+    ) {
+        travel {
+            trip {
+                updateDelegatesDashboardWorkItemStatus(
+                    workItemId: $workItemId
+                    status: $status
+                    assigneeId: $assigneeId
+                ) {
+                    ...workItem
+                }
+            }
+        }
+    }
+
+## Fragments used by the trimmed travel documents (src/graphql/travel.ts inlines them)
+### tripTraveler
+fragment tripTraveler on TravelUserProfileDetails {
+        id
+        displayName
+        contactDetails {
+            type
+            value
+        }
+    }
+
+### travelPrice
+fragment travelPrice on TravelPrice {
+        amount
+        currencyCode
+    }
+
+### tripBookingV2
+fragment tripBookingV2 on TravelTripBookingV2 {
+        id
+        status
+        type: __typename
+        ... on TravelTripAirBookingV2 {
+            airBooking: booking {
+                ...tripAirBooking
+            }
+            ruleViolations {
+                ...ruleViolation
+            }
+            costBreakdown {
+                ...bookingCostBreakdown
+            }
+        }
+        ... on TravelTripCarBookingV2 {
+            carBooking: booking {
+                bookingData {
+                    ...tripCarBookingData
+                }
+                totalCostItemized {
+                    ...tripCarTotalCostItemized
+                }
+            }
+            ruleViolations {
+                ...ruleViolation
+            }
+            costBreakdown {
+                ...bookingCostBreakdown
+            }
+        }
+        ... on TravelTripHotelBookingV2 {
+            hotelBooking: booking {
+                bookingData {
+                    ...tripHotelBookingData
+                }
+                totalCost {
+                    ...tripHotelPrice
+                }
+            }
+            ruleViolations {
+                ...ruleViolation
+            }
+            costBreakdown {
+                ...bookingCostBreakdown
+            }
+        }
+        ... on TravelTripRailBookingV2 {
+            bookingRecord {
+                creationDate
+                recordLocators {
+                    value
+                }
+            }
+            railBooking: booking {
+                fares {
+                    ...tripRailFare
+                }
+                journeys {
+                    ...tripRailJourney
+                }
+                bookingStatus
+                totalCost {
+                    ...tripRailCost
+                }
+                rulesAndRestrictions {
+                    ...tripRailRulesAndRestrictions
+                }
+                turnedDownOptions {
+                    ...railTurnedDownOption
+                }
+                messages {
+                    ...message
+                }
+            }
+            ruleViolations {
+                ...ruleViolation
+            }
+            costBreakdown {
+                ...bookingCostBreakdown
+            }
+        }
+    }
+
+### tripAirBooking
+fragment tripAirBooking on TravelAirBooking {
+        messages {
+            code
+            type
+        }
+        journeys {
+            ...tripAirJourney
+        }
+        confirmationNumber
+        status: statusV2
+    }
+
+### tripAirJourney
+fragment tripAirJourney on TravelAirBookingJourney {
+        id
+        origin {
+            ...tripAirport
+        }
+        destination {
+            ...tripAirport
+        }
+        marketingCarrier {
+            ...tripAirCarrier
+        }
+        operatingCarrier {
+            ...tripAirCarrier
+        }
+        originDisplayName
+        destinationDisplayName
+        departureDateTime
+        arrivalDateTime
+        duration
+        nonstop
+        stopsCount
+        segments {
+            ...tripAirSegment
+        }
+        preferredStatus
+        seatReservations {
+            ...tripAirSeatReservation
+        }
+        discountCode
+        offerAttributes {
+            ...tripAirOfferAttributes
+        }
+        confirmationNumbers
+        ticketNumbers
+        messages {
+            code
+            type
+        }
+        emissions {
+            ...emissions
+        }
+        tags
+        type
+        loyaltyAccount {
+            id
+            partialNumber
+            programName
+            vendorName
+        }
+        loyaltyAccounts {
+            id
+            partialNumber
+            programName
+            vendorName
+        }
+        ownerDisplayName
+        paymentOption {
+            displayName
+            lastFour
+        }
+        policyCompliance {
+            ...policyCompliance
+        }
+    }
+
+### tripAirSegment
+fragment tripAirSegment on TravelAirItinerarySegment {
+        id
+        confirmationNumber
+        ticketNumber
+        origin {
+            ...tripAirport
+        }
+        destination {
+            ...tripAirport
+        }
+        marketingCarrier {
+            ...tripAirCarrier
+        }
+        operatingCarrier {
+            ...tripAirCarrier
+        }
+        destinationDisplayName
+        originDisplayName
+        departureDateTime
+        arrivalDateTime
+        duration
+        flightNumber
+        footnote {
+            type
+            text
+        }
+        hiddenStops {
+            ...tripAirport
+        }
+        aircraftType
+        cabin {
+            ...tripAirCabin
+        }
+        selectedSeat {
+            rowNumber
+            columnLetter
+            messages {
+                code
+                type
+            }
+        }
+        attributes {
+            ...itinerarySegmentAttributes
+        }
+        emissions {
+            ...emissions
+        }
+        equipmentType
+        layoverDurationMinutes
+        isSeatChangeAllowed
+        messages {
+            code
+            type
+        }
+    }
+
+### tripAirport
+fragment tripAirport on TravelAirport {
+        iataCode
+        name
+    }
+
+### tripAirCarrier
+fragment tripAirCarrier on TravelAirCarrier {
+        name
+        iataCode
+        logoUrl
+    }
+
+### tripCarBookingData
+fragment tripCarBookingData on TravelTripCarBookingData {
+        status
+        pickupLocationDateTime {
+            ...carLocationDateTime
+        }
+        deliveryAddress {
+            ...carDeliveryCollectionAddress
+        }
+        dropoffLocationDateTime {
+            ...carLocationDateTime
+        }
+        collectionAddress {
+            ...carDeliveryCollectionAddress
+        }
+        isSingleLocation
+        confirmationNumber
+        co2eEmissions {
+            amountInKilograms
+            distanceInKilometers
+        }
+        acrissCode
+        isCorporateRate
+        includedCharges {
+            description
+        }
+        mileage {
+            unlimited
+            limitQuantity
+            limitUnit
+            limitPeriod
+        }
+        vendor {
+            name
+            preferenceLevel
+            logo {
+                ...carMediaItem
+            }
+        }
+        vehicle {
+            acrissCode
+            category
+            type
+            transmissionType
+            fuelType
+            makeModel
+            modelGuaranteed
+            baggageCount
+            doorCount
+            passengerCount
+            hasSatNav
+            hasAirConditioning
+            driveTrainType
+            mediaItems {
+                ...carMediaItem
+            }
+        }
+        loyalty {
+            partialNumber
+            programName
+            vendorName
+        }
+    }
+
+### carLocationDateTime
+fragment carLocationDateTime on TravelTripCarLocationDateTime {
+        localDateTime
+        location {
+            phone
+            directions
+            shuttleType
+            openingHours {
+                startDay
+                endDay
+                hours {
+                    start
+                    end
+                }
+            }
+            afterHours {
+                startDay
+                endDay
+                hours {
+                    start
+                    end
+                }
+            }
+            address {
+                address1
+                address2
+                localityName
+                administrativeAreaName
+                postalCode
+                country
+            }
+            rentalRulesAndRestrictions {
+                rules {
+                    category
+                    text
+                }
+                fallbackUrl
+            }
+            description
+        }
+    }
+
+### tripCarTotalCostItemized
+fragment tripCarTotalCostItemized on TravelTripCarTotalCostItemized {
+        currencyCode
+        baseAmount
+        rentalDurationDays
+        otherAmount
+        estimatedTotalAmount
+    }
+
+### tripHotelBookingData
+fragment tripHotelBookingData on TravelTripHotelBookingData {
+        id
+        checkInDate
+        checkOutDate
+        checkInTime
+        checkOutTime
+        guestCount
+        confirmationNumber
+        confirmationPin
+        customerLoyaltyAccount {
+            partialLoyaltyNumber
+            programName
+            vendorName
+        }
+        voucherUrl
+        hotelConfirmationNumber
+        nightCount
+        roomCount
+        status: bookingStatus
+        specialRequests
+        notes
+        hotel {
+            ...tripHotel
+        }
+        rate {
+            ...tripHotelRate
+        }
+        perDiemAllowances {
+            ...tripHotelPerDiemAllowance
+        }
+        formsOfPayment {
+            displayName
+            card {
+                lastFour
+            }
+        }
+    }
+
+### tripHotel
+fragment tripHotel on TravelTripHotel {
+        name
+        eReceiptsEnabled
+        isFema
+        hasFedRooms
+        leadImage {
+            external
+            title
+            url
+        }
+        address {
+            address1
+            address2
+            localityName
+            administrativeAreaName
+            postalCode
+        }
+        contactDetails {
+            type
+            value
+        }
+        preferenceRank {
+            rank
+            level
+        }
+        starRating {
+            name
+            value
+            source
+        }
+        sustainability {
+            emissions {
+                total
+                measure
+                unit
+            }
+        }
+    }
+
+### tripHotelPrice
+fragment tripHotelPrice on TravelTripHotelPrice {
+        base
+        currencyCode
+        surcharge
+        tax
+        total
+    }
+
+### tripRailJourney
+fragment tripRailJourney on TravelTripRailJourney {
+        id
+        departure {
+            ...stationDateTime
+        }
+        arrival {
+            ...stationDateTime
+        }
+        durationMinutes
+        segments {
+            ...tripRailJourneySegment
+        }
+        carrier {
+            ...tripRailCarrier
+        }
+        regulationLinks {
+            ...tripRailRegulationLinks
+        }
+        tickets {
+            ticketNumber
+            ticketDeliveries {
+                ...tripRailTicketDeliveries
+            }
+            stationNamePairs {
+                from
+                to
+            }
+        }
+        openReturnTickets {
+            ticketDeliveries {
+                ...tripRailTicketDeliveries
+            }
+            stationNamePairs {
+                from
+                to
+            }
+        }
+        isOpenReturn
+        co2EmissionInGramsPerPassenger
+        preferenceLevel
+        messages {
+            ...message
+        }
+        agencyInfo {
+            ...TravelRailAgencyInfoFragment
+        }
+        summary {
+            ...ConnectionSummaryFragment
+        }
+        journeyStatus
+    }
+
+### stationDateTime
+fragment stationDateTime on TravelStationDateTime {
+        stationName
+        localDateTime
+    }
+
+### tripRailCarrier
+fragment tripRailCarrier on TravelTripRailCarrier {
+        displayName
+        logo {
+            url
+        }
+    }
+
+### tripRailCost
+fragment tripRailCost on TravelTripRailCost {
+        baseAmount
+        currencyCode
+        surchargeAmount
+        taxAmount
+        totalAmount
+    }
+
+### historyLocation
+fragment historyLocation on TravelTripHistoryLocation {
+        address {
+            address1
+            address2
+            administrativeAreaName
+            localityName
+        }
+        railStationName
+        iataCode
+    }
+
+### message
+fragment message on TravelMessage {
+        code
+        type
+        parameters {
+            code
+            value
+        }
+    }
+
