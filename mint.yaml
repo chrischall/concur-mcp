@@ -24,6 +24,30 @@ env:
       Concentrator port for the fetchproxy bridge (defaults to the fleet-shared
       37149). The runner injects a per-registration port for a hosted bridged
       child, so this is the name to give `bridgePortEnv` at registration.
+  - name: CONCUR_OUTPUT_DIR
+    required: false
+    help: >-
+      Where concur_get_receipt saves downloaded receipts, never overwriting an
+      existing file (defaults to the working directory). Unused when receipts
+      are returned inline, which is the default when hosted.
+  - name: CONCUR_UPLOAD_ROOTS
+    required: false
+    help: >-
+      The only folders concur_upload_receipt may read from (a
+      path-delimiter-separated list, ~ expanded). Defaults to
+      $MCP_DATA_DIR/uploads when hosted; locally the working directory,
+      ~/Downloads, ~/Documents and ~/Desktop.
+  - name: CONCUR_INLINE_RECEIPTS
+    required: false
+    help: >-
+      true returns concur_get_receipt's image in the tool result instead of
+      writing a file. Defaults to on when hosted (MCP_DATA_DIR set — the
+      runner's disk is not the user's) and off locally.
+  - name: CONCUR_DEBUG
+    required: false
+    help: >-
+      Truthy logs the fetchproxy bridge's role and lifecycle to stderr.
+      Diagnostic only.
   - name: MCP_CONFIRM_MODE
     required: false
     help: >-

@@ -87,7 +87,16 @@ describe('packaging', () => {
     const mint = readText('mint.yaml');
     expect(mint).toMatch(/slug: concur\n/);
     expect(mint).toMatch(/dataDir:\s*true/);
-    for (const name of ['CONCUR_DC', 'CONCUR_WS_PORT', 'MCP_CONFIRM_MODE', 'MCP_CONFIRM_ELICITATION']) {
+    for (const name of [
+      'CONCUR_DC',
+      'CONCUR_WS_PORT',
+      'CONCUR_OUTPUT_DIR',
+      'CONCUR_UPLOAD_ROOTS',
+      'CONCUR_INLINE_RECEIPTS',
+      'CONCUR_DEBUG',
+      'MCP_CONFIRM_MODE',
+      'MCP_CONFIRM_ELICITATION',
+    ]) {
       expect(mint, name).toMatch(new RegExp(`- name: ${name}\\n`));
     }
     // Egress is tenant-derived (www-<dc>.api…), so no fixed allow-list is declared.
