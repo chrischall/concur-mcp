@@ -299,7 +299,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         '(list fields such as a Business Purpose dropdown are resolved to their list item). The preview lists every ' +
         'field that will be sent and any required field still empty. Answers with the new report as Concur shows it. ' +
         GATE,
-      annotations: toolAnnotations({ title: 'Create a Concur expense report', readOnly: false, destructive: false }),
+      annotations: toolAnnotations({ title: 'Create a Concur expense report', readOnly: false, destructive: false, openWorld: true }),
       inputSchema: z.object({
         name: z.string().min(1).max(200).describe('Report name.'),
         reportDate: IsoDate.optional().describe('Report date, YYYY-MM-DD (default today).'),
@@ -395,7 +395,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'fields by label. Sends only the fields that actually change; the preview shows each one from → to. ' +
         'Answers with the report as Concur shows it afterwards. ' +
         GATE,
-      annotations: toolAnnotations({ title: 'Update a Concur report header', readOnly: false, destructive: false }),
+      annotations: toolAnnotations({ title: 'Update a Concur report header', readOnly: false, destructive: false, openWorld: true }),
       inputSchema: z.object({
         reportId: reportIdParam,
         name: z.string().min(1).max(200).optional().describe('New report name.'),
@@ -475,7 +475,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'manually entered expenses and their receipts attachments are gone. Cannot be undone. The preview lists the ' +
         'expenses that will be deleted. Re-reads afterwards to confirm the report is gone. ' +
         GATE,
-      annotations: toolAnnotations({ title: 'Delete a Concur expense report', destructive: true }),
+      annotations: toolAnnotations({ title: 'Delete a Concur expense report', destructive: true, openWorld: true }),
       inputSchema: z.object({ reportId: reportIdParam, confirmToken: confirmTokenParam }),
     },
     async ({ reportId, confirmToken }, ctx) => {
@@ -560,7 +560,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         "by your approvers and auditors. Confirms the comment is on the report's timeline afterwards (from Concur's " +
         'answer, else by re-reading the timeline). ' +
         GATE,
-      annotations: toolAnnotations({ title: 'Comment on a Concur report', destructive: true }),
+      annotations: toolAnnotations({ title: 'Comment on a Concur report', destructive: true, openWorld: true }),
       inputSchema: z.object({
         reportId: reportIdParam,
         comment: z.string().trim().min(1).max(2000).describe('The comment text.'),
@@ -634,7 +634,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'warnings comes back unsubmitted with Concur’s message unless `acknowledgeWarnings` is true. Re-reads the ' +
         'report afterwards and answers with its observed status. ' +
         GATE,
-      annotations: toolAnnotations({ title: 'Submit a Concur expense report', destructive: true }),
+      annotations: toolAnnotations({ title: 'Submit a Concur expense report', destructive: true, openWorld: true }),
       inputSchema: z.object({
         reportId: reportIdParam,
         acknowledgeWarnings: z
@@ -743,7 +743,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'be edited and resubmitted (the inverse of concur_submit_report). Only possible before it is approved. ' +
         'Re-reads the report afterwards and answers with its observed status. ' +
         GATE,
-      annotations: toolAnnotations({ title: 'Recall a Concur expense report', readOnly: false, destructive: false }),
+      annotations: toolAnnotations({ title: 'Recall a Concur expense report', readOnly: false, destructive: false, openWorld: true }),
       inputSchema: z.object({ reportId: reportIdParam, confirmToken: confirmTokenParam }),
     },
     async ({ reportId, confirmToken }, ctx) => {

@@ -16,6 +16,7 @@ import { TOOL_REGISTRARS } from '../src/tools/index.js';
 interface Ann {
   readOnlyHint?: unknown;
   destructiveHint?: unknown;
+  openWorldHint?: unknown;
 }
 
 async function annotations(): Promise<Record<string, Ann | undefined>> {
@@ -33,6 +34,7 @@ async function annotations(): Promise<Record<string, Ann | undefined>> {
  */
 const DESTRUCTIVE = [
   'concur_add_report_comment', // permanent, seen by approvers — no delete
+  'concur_append_receipt', // no tool removes a single appended page; detach takes the whole receipt
   'concur_delete_available_expenses',
   'concur_delete_expenses',
   'concur_delete_receipt',
@@ -41,7 +43,11 @@ const DESTRUCTIVE = [
   'concur_move_available_expenses_to_report', // no move-back operation
   'concur_send_itinerary', // real email to third parties
   'concur_submit_report', // reaches the approver
+  'concur_upload_receipt', // `append: true` is the same irreversible append
 ].sort();
+
+/** The only tools that never reach Concur: concur_list_operations reads the bundled operation index. */
+const LOCAL_ONLY = ['concur_list_operations'];
 
 describe('tool annotations', () => {
   it('covers the whole surface (a meta-test that silently covers half is worse than none)', async () => {
@@ -75,5 +81,11 @@ describe('tool annotations', () => {
       .map(([name]) => name)
       .sort();
     expect(destructive).toEqual(DESTRUCTIVE);
+  });
+
+  it('sets an explicit boolean openWorldHint on every tool, false only for the local ones', async () => {
+    const all = Object.entries(await annotations());
+    expect(all.filter(([, a]) => typeof a?.openWorldHint !== 'boolean').map(([name]) => name)).toEqual([]);
+    expect(all.filter(([, a]) => a?.openWorldHint === false).map(([name]) => name).sort()).toEqual(LOCAL_ONLY);
   });
 });
