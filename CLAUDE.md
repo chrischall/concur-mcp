@@ -95,7 +95,8 @@ npm run test:coverage
   Each write tool has a "mutation OK + re-read fails → success" test.
 - Annotations follow the inverse test; the destructive set is pinned in
   `tests/tool-annotations.test.ts`. Submit is destructive (reaches the approver)
-  even though recall exists.
+  even though recall exists. Append (and upload with `append: true`) is
+  destructive: no tool takes one appended page back off.
 - Out of scope, by decision: approvals (`contextRole: MANAGER`), card-account
   management, and travel booking / hold / confirm / cancel. Don't add them; the
   mutation escape hatch refuses them.

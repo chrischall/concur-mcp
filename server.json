@@ -27,6 +27,24 @@
           "description": "fetchproxy bridge concentrator port. Defaults to the fleet-shared 37149.",
           "isRequired": false,
           "format": "string"
+        },
+        {
+          "name": "CONCUR_OUTPUT_DIR",
+          "description": "Where `concur_get_receipt` saves downloaded receipts (never overwriting an existing file). Defaults to ~/Downloads/concur-mcp.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "CONCUR_UPLOAD_ROOTS",
+          "description": "The only folders `concur_upload_receipt` will read from (a path-delimiter-separated list; `~` expanded). Hosted (with `MCP_DATA_DIR` set) the default is `$MCP_DATA_DIR/uploads`. Defaults to the working directory, ~/Downloads, ~/Documents and ~/Desktop.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "CONCUR_INLINE_RECEIPTS",
+          "description": "`true` makes `concur_get_receipt` return the image in the result instead of writing a file. Off locally, on when hosted.",
+          "isRequired": false,
+          "format": "boolean"
         }
       ]
     }

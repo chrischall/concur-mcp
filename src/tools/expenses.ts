@@ -230,7 +230,7 @@ export function registerExpenseTools(server: McpServer, client: ConcurClient): v
         'receipt, itemizations, comments, exceptions, and the expense form fields by label with their current ' +
         'values (list-valued fields include the list item id). ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'Get a Concur expense', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Get a Concur expense', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         reportId: reportIdParam,
         expenseId: expenseIdParam,
@@ -268,7 +268,7 @@ export function registerExpenseTools(server: McpServer, client: ConcurClient): v
         'expenses that are not on any report yet. A row whose fields are empty with `missingData` set is a receipt ' +
         'still being read, not an error. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'List Concur available expenses', readOnly: true }),
+      annotations: toolAnnotations({ title: 'List Concur available expenses', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         page: pageParam,
         size: sizeParam,

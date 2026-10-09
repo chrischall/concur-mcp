@@ -330,7 +330,7 @@ export function registerReportTools(server: McpServer, client: ConcurClient): vo
         'List your SAP Concur expense reports (name, number, dates, approval and payment status, totals, approver). ' +
         'Filter by status (ALL, ACTIVE, UNSUBMITTED, SENT_FOR_PAYMENT) and an optional report-date range; paged. ' +
         'Use the returned reportId with concur_get_report.',
-      annotations: toolAnnotations({ title: 'List Concur expense reports', readOnly: true }),
+      annotations: toolAnnotations({ title: 'List Concur expense reports', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         status: z.enum(REPORT_STATUSES).default('ALL').describe('Which reports (default ALL).'),
         from: IsoDate.optional().describe('Range start, YYYY-MM-DD (needs `to`).'),
@@ -375,7 +375,7 @@ export function registerReportTools(server: McpServer, client: ConcurClient): vo
         '(date, type, vendor, payment type, amounts, receipt, flags) and its exceptions (missing fields, policy ' +
         'violations — `blocking` ones prevent submission). ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'Get a Concur expense report', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Get a Concur expense report', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         reportId: reportIdParam,
         view: concurView(
@@ -402,7 +402,7 @@ export function registerReportTools(server: McpServer, client: ConcurClient): vo
         'workflow events (submitted, approved, sent back…), grouped by day — plus its audit trail (who changed ' +
         'what, and when, at report and expense level). ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'Get a Concur report timeline', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Get a Concur report timeline', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         reportId: reportIdParam,
         view: concurView(

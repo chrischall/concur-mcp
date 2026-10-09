@@ -56,7 +56,7 @@ export function registerLookupTools(server: McpServer, client: ConcurClient): vo
         'Who the SAP Concur session belongs to: your Concur user id (UUID), the datacenter, minutes until the ' +
         'browser session token expires, and which Concur features your account has (travel requests, cash ' +
         'advances, ExpenseIt).',
-      annotations: toolAnnotations({ title: 'Concur: who am I', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Concur: who am I', readOnly: true, openWorld: true }),
       inputSchema: z.object({}),
     },
     async () => {
@@ -88,7 +88,7 @@ export function registerLookupTools(server: McpServer, client: ConcurClient): vo
       description:
         'List the expense types you can use on one SAP Concur report (its policy decides which). Returns each ' +
         "type's id (pass it as the expense type when creating an expense), name and group.",
-      annotations: toolAnnotations({ title: 'List Concur expense types', readOnly: true }),
+      annotations: toolAnnotations({ title: 'List Concur expense types', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         reportId: reportIdParam,
         view: concurView('compact keeps id, code, name and group (parentName); full adds description, text, header and visibility.'),
@@ -135,7 +135,7 @@ export function registerLookupTools(server: McpServer, client: ConcurClient): vo
       description:
         'List the SAP Concur payment types you can put on an expense (e.g. cash / out-of-pocket, company card). ' +
         'Returns each payment type id and name.',
-      annotations: toolAnnotations({ title: 'List Concur payment types', readOnly: true }),
+      annotations: toolAnnotations({ title: 'List Concur payment types', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         view: concurView('compact renames to {id, name} and shows prePopulatedOnly only when true (card-fed types you cannot pick by hand).'),
       }),
@@ -165,7 +165,7 @@ export function registerLookupTools(server: McpServer, client: ConcurClient): vo
     {
       description:
         'List the currencies SAP Concur accepts (ISO code and name), optionally filtered by a code or name fragment.',
-      annotations: toolAnnotations({ title: 'List Concur currencies', readOnly: true }),
+      annotations: toolAnnotations({ title: 'List Concur currencies', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         search: z.string().trim().min(1).optional().describe('Case-insensitive code or name fragment, e.g. "eur" or "dollar".'),
         view: concurView('compact renders each currency as one "CODE Name" string; full keeps {code, name} objects; raw is unfiltered.'),
@@ -197,7 +197,7 @@ export function registerLookupTools(server: McpServer, client: ConcurClient): vo
         'Search SAP Concur locations by city name (optionally narrowed by country and subdivision code) — the ' +
         'location list expense forms use. Returns each match with its id, display name, country, subdivision and ' +
         'local currency.',
-      annotations: toolAnnotations({ title: 'Search Concur locations', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Search Concur locations', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         city: z.string().trim().min(1).describe('City name or its beginning, e.g. "Toronto".'),
         countryCode: z

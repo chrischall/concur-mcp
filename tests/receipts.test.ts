@@ -153,9 +153,9 @@ describe('receipt tools', () => {
     expect(by.concur_list_available_receipts!.annotations?.readOnlyHint).toBe(true);
     expect(by.concur_get_receipt!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true });
     const gated = {
-      concur_upload_receipt: false,
+      concur_upload_receipt: true, // append: true cannot be undone
       concur_attach_receipt: false,
-      concur_append_receipt: false,
+      concur_append_receipt: true, // no tool removes a single appended page
       concur_detach_receipt: false,
       concur_delete_receipt: true,
     };

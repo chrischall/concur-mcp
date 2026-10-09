@@ -382,7 +382,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         'date range. Paged by `nextToken`. Use the tripId with concur_get_trip. Read-only — this MCP never books, ' +
         'changes or cancels travel. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'List Concur trips', readOnly: true }),
+      annotations: toolAnnotations({ title: 'List Concur trips', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         when: z.enum(['upcoming', 'past', 'all']).default('upcoming').describe('Which trips (default upcoming).'),
         name: z.string().trim().min(1).max(200).optional().describe('Only trips whose name matches this text.'),
@@ -432,7 +432,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         'flights (flight number, airports, times, seat), hotel (name, address, check-in/out, confirmation), car ' +
         '(vendor, pickup/drop-off), rail (stations, times). Read-only. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'Get a Concur trip', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Get a Concur trip', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         tripId: tripIdParam,
         view: concurView('compact flattens each booking to its essentials and joins addresses and amounts into strings.'),
@@ -452,7 +452,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         "Get an SAP Concur Travel trip's history: when it was created, confirmed, approved or rejected, bookings " +
         'added/changed/cancelled, and itinerary emails sent (with recipients). Read-only. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'Get a Concur trip history', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Get a Concur trip history', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         tripId: tripIdParam,
         view: concurView('compact flattens every event to {at, action, actor, reason, ...details} with short action names.'),
@@ -478,7 +478,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         'This sends real email to those recipients and cannot be undone. The subject defaults to "Itinerary: <trip ' +
         'name>". ' +
         GATE,
-      annotations: toolAnnotations({ title: 'Email a Concur trip itinerary', destructive: true }),
+      annotations: toolAnnotations({ title: 'Email a Concur trip itinerary', destructive: true, openWorld: true }),
       inputSchema: z.object({
         tripId: tripIdParam,
         recipients: z.array(z.email()).min(1).max(20).describe('Email addresses to send the itinerary to.'),

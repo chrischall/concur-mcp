@@ -34,7 +34,11 @@
         "${__dirname}/dist/bundle.js"
       ],
       "env": {
-        "CONCUR_DC": "${user_config.concur_dc}"
+        "CONCUR_DC": "${user_config.concur_dc}",
+        "CONCUR_WS_PORT": "${user_config.concur_ws_port}",
+        "CONCUR_OUTPUT_DIR": "${user_config.concur_output_dir}",
+        "CONCUR_UPLOAD_ROOTS": "${user_config.concur_upload_roots}",
+        "CONCUR_INLINE_RECEIPTS": "${user_config.concur_inline_receipts}"
       }
     }
   },
@@ -44,6 +48,30 @@
       "title": "Concur datacenter",
       "description": "The datacenter from your signed-in Concur tab's host (e.g. us2 for us2.concursolutions.com). Defaults to us2.",
       "default": "us2",
+      "required": false
+    },
+    "concur_ws_port": {
+      "type": "number",
+      "title": "Bridge port",
+      "description": "The fetchproxy bridge port. The whole fetchproxy fleet and ContextMint Bridge share `37149`; override only for local testing (or when a host injects a per-registration port). Defaults to 37149.",
+      "required": false
+    },
+    "concur_output_dir": {
+      "type": "directory",
+      "title": "Receipt download folder",
+      "description": "Where `concur_get_receipt` saves downloaded receipts (never overwriting an existing file). Defaults to ~/Downloads/concur-mcp.",
+      "required": false
+    },
+    "concur_upload_roots": {
+      "type": "string",
+      "title": "Allowed upload folders",
+      "description": "The only folders `concur_upload_receipt` will read from (a path-delimiter-separated list; `~` expanded). Hosted (with `MCP_DATA_DIR` set) the default is `$MCP_DATA_DIR/uploads`. Defaults to the working directory, ~/Downloads, ~/Documents and ~/Desktop.",
+      "required": false
+    },
+    "concur_inline_receipts": {
+      "type": "boolean",
+      "title": "Return receipts inline",
+      "description": "`true` makes `concur_get_receipt` return the image in the result instead of writing a file. Off locally, on when hosted.",
       "required": false
     }
   },

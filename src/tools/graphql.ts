@@ -80,7 +80,7 @@ export function registerGraphqlTools(server: McpServer, client: ConcurClient): v
         `cannot parse); use concur_graphql_mutation for writes. ${ENDPOINT_NOTE} ${SHAPES_NOTE} Prefer a dedicated tool ` +
         'when concur_list_operations names one. Returns the GraphQL `data` as-is. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
-      annotations: toolAnnotations({ title: 'Run a Concur GraphQL query', readOnly: true }),
+      annotations: toolAnnotations({ title: 'Run a Concur GraphQL query', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         endpoint: endpointParam,
         query: documentParam('query'),
@@ -111,7 +111,7 @@ export function registerGraphqlTools(server: McpServer, client: ConcurClient): v
         'travel search, approvals and delegate work items. Prefer a dedicated tool whenever concur_list_operations ' +
         `names one. ${ENDPOINT_NOTE} ${SHAPES_NOTE} ` +
         GATE,
-      annotations: toolAnnotations({ title: 'Run a Concur GraphQL mutation', destructive: true }),
+      annotations: toolAnnotations({ title: 'Run a Concur GraphQL mutation', destructive: true, openWorld: true }),
       inputSchema: z.object({
         endpoint: endpointParam,
         query: documentParam('mutation'),
@@ -165,7 +165,7 @@ export function registerGraphqlTools(server: McpServer, client: ConcurClient): v
         'tool), whether concur_graphql_mutation refuses it, and which docs/api/ file holds its verbatim text ' +
         `(${OPERATION_TEXTS_URL}). Use it to find shapes for concur_graphql_query / concur_graphql_mutation. ` +
         'Local data — no call to Concur.',
-      annotations: toolAnnotations({ title: 'List Concur GraphQL operations', readOnly: true }),
+      annotations: toolAnnotations({ title: 'List Concur GraphQL operations', readOnly: true, openWorld: false }),
       inputSchema: z.object({
         endpoint: z.enum(['spend', 'cds']).optional().describe('Only this endpoint.'),
         kind: z.enum(['query', 'mutation']).optional().describe('Only queries or only mutations.'),
