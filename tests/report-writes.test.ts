@@ -1032,7 +1032,9 @@ describe('concur_recall_report', () => {
 describe('localIsoDate', () => {
   const tz = process.env.TZ;
   afterEach(() => {
-    process.env.TZ = tz;
+    // Assigning undefined would set the STRING "undefined"; unset it instead.
+    if (tz === undefined) delete process.env.TZ;
+    else process.env.TZ = tz;
   });
 
   it('formats the LOCAL calendar date, not the UTC one', () => {
