@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "SAP Concur tools for Claude Code",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "plugins": [
     {
@@ -14,7 +14,7 @@
       "displayName": "SAP Concur",
       "source": "./",
       "description": "Unofficial SAP Concur tools for Claude — expense reports, expenses, receipts and trips via MCP",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Chris Chall"
       },

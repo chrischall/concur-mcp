@@ -1,7 +1,7 @@
 {
   "name": "concur",
   "displayName": "SAP Concur",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Unofficial SAP Concur tools for Claude — expense reports, expenses, receipts and trips via MCP",
   "author": {
     "name": "Chris Chall"
