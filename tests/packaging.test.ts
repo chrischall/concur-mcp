@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VERSION } from '../src/version.js';
@@ -34,6 +34,15 @@ describe('packaging', () => {
     expect(server.command).toBe('npx');
     expect(server.args).toEqual(['-y', pkg.name]);
     expect(JSON.stringify(server)).not.toMatch(/dist\//);
+  });
+
+  it('plugin.json declares its MCP config under mcpServers, the key Claude Code reads', () => {
+    // Claude Code ignores an `mcp` key ("Unknown field"); it only appeared to
+    // work because ./.mcp.json is also the default location.
+    const plugin = read('.claude-plugin/plugin.json');
+    expect(plugin).not.toHaveProperty('mcp');
+    expect(plugin.mcpServers).toBe('./.mcp.json');
+    expect(existsSync(join(ROOT, plugin.mcpServers))).toBe(true);
   });
 
   it('server.json description is within the 100-char registry limit', () => {
