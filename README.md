@@ -79,7 +79,7 @@ The token lives 60 minutes. The server re-reads the cookies (all together) from 
 |---|---|---|
 | `CONCUR_DC` | `us2` | Your datacenter: the first label of your signed-in tab's host (`us2` for `us2.concursolutions.com`, `eu2`, …). Must match the session token's issuer, or every call fails with an error that says which value to use. |
 | `CONCUR_WS_PORT` | `37149` | The fetchproxy bridge port. The whole fetchproxy fleet and ContextMint Bridge share `37149`; override only for local testing (or when a host injects a per-registration port). |
-| `CONCUR_OUTPUT_DIR` | working directory | Where `concur_get_receipt` saves downloaded receipts (never overwriting an existing file). |
+| `CONCUR_OUTPUT_DIR` | `~/Downloads/concur-mcp` | Where `concur_get_receipt` saves downloaded receipts (never overwriting an existing file). |
 | `CONCUR_UPLOAD_ROOTS` | cwd, `~/Downloads`, `~/Documents`, `~/Desktop` | The only folders `concur_upload_receipt` will read from (a path-delimiter-separated list; `~` expanded). Hosted (with `MCP_DATA_DIR` set) the default is `$MCP_DATA_DIR/uploads`. |
 | `CONCUR_INLINE_RECEIPTS` | off locally, on when hosted | `true` makes `concur_get_receipt` return the image in the result instead of writing a file. |
 | `CONCUR_DEBUG` | off | Log the bridge's role and lifecycle to stderr. |

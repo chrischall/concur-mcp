@@ -236,8 +236,8 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
       {
         description:
           'Download one SAP Concur receipt image by id (from concur_list_available_receipts, or an expense’s ' +
-          '`receiptImageId`). Locally it is saved, never overwriting, to CONCUR_OUTPUT_DIR (else the working ' +
-          'directory) and the path is returned; `inline: true` returns the image in the result instead (a PDF as ' +
+          '`receiptImageId`). Locally it is saved, never overwriting, to CONCUR_OUTPUT_DIR (else ~/Downloads/' +
+          'concur-mcp) and the path is returned; `inline: true` returns the image in the result instead (a PDF as ' +
           'an embedded resource). On a hosted server nothing is saved and it is always inline. Pass `reportId` ' +
           'for a receipt on a report so its permissions are judged in that context. Writes only a local file — ' +
           'nothing changes in Concur. ' +
