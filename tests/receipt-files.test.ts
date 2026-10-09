@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DiskReceiptOutput,
   InlineReceiptOutput,
@@ -70,6 +70,18 @@ describe('DiskReceiptOutput', () => {
     expect(second).toBe(join(dir, 'receipt-IMG1-2.png'));
     expect(new Uint8Array(readFileSync(first!))).toEqual(bytes);
     expect(statSync(first!).mode & 0o077).toBe(0);
+  });
+
+  it('without CONCUR_OUTPUT_DIR saves to ~/Downloads/concur-mcp, never the cwd', async () => {
+    const home = tmp();
+    vi.stubEnv('HOME', home);
+    try {
+      const out = new DiskReceiptOutput({});
+      const path = await out.save({ baseName: 'receipt-IMG1', extension: 'png', bytes: new Uint8Array([1]) });
+      expect(path).toBe(join(home, 'Downloads', 'concur-mcp', 'receipt-IMG1.png'));
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('a path-like base name cannot escape the directory', async () => {

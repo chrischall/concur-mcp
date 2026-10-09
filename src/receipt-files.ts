@@ -7,7 +7,7 @@
 //
 // Downloads: an injectable output with a `persistsFiles` flag. Locally the
 // server's disk IS the user's, so a receipt is written (never overwriting) to
-// `CONCUR_OUTPUT_DIR` (else the cwd). Hosted, the disk is the runner's and the
+// `CONCUR_OUTPUT_DIR` (else `~/Downloads/concur-mcp`). Hosted, the disk is the runner's and the
 // user can never open a path on it, so the inline output writes nothing and the
 // tool returns the bytes in the result instead of claiming "saved to <path>".
 
@@ -84,7 +84,7 @@ export interface ReceiptOutput {
   save(file: ReceiptFileToSave): Promise<string | undefined>;
 }
 
-/** Writes to `CONCUR_OUTPUT_DIR` (else the cwd), owner-only, never overwriting. */
+/** Writes to `CONCUR_OUTPUT_DIR` (else `~/Downloads/concur-mcp`), owner-only, never overwriting. */
 export class DiskReceiptOutput implements ReceiptOutput {
   readonly persistsFiles = true;
 
@@ -92,7 +92,7 @@ export class DiskReceiptOutput implements ReceiptOutput {
 
   async save(file: ReceiptFileToSave): Promise<string> {
     // Resolved per call (it creates the directory) — never at boot.
-    const dir = resolveOutputDir(undefined, 'CONCUR_OUTPUT_DIR', { env: this.env });
+    const dir = resolveOutputDir(undefined, 'CONCUR_OUTPUT_DIR', { env: this.env, name: 'concur-mcp' });
     return writeUniqueFile({ dir, baseName: file.baseName, extension: file.extension, bytes: file.bytes, mode: 0o600 });
   }
 }
