@@ -18,7 +18,7 @@ import {
   untrustedResult,
 } from '@chrischall/mcp-utils';
 import { GraphqlResponseError } from '@chrischall/mcp-utils/graphql';
-import { warningsField, type ConcurClient } from '../client.js';
+import { warningsField, warningsOf, type ConcurClient } from '../client.js';
 import {
   CREATE_REPORT,
   CREATE_REPORT_COMMENT,
@@ -214,6 +214,40 @@ async function readReport(client: ConcurClient, userId: string, reportId: string
   return client.spend<ReportPageData>(GET_REPORT, { userId, reportId, contextRole: CONTEXT_ROLE }, REPORT_ESSENTIAL);
 }
 
+/**
+ * The report read a destructive write decides from. A partial answer is fine
+ * for most reads, but not when the part that failed is the part the write
+ * depends on: a delete preview built from a partial expense list understates
+ * what is deleted, and a submit pre-check built from a partial exception list
+ * can miss a blocking one. Refuse instead of guessing. (Not `essential`: an
+ * empty report may legitimately answer null there.)
+ */
+async function readReportComplete(
+  client: ConcurClient,
+  userId: string,
+  reportId: string,
+  roots: readonly string[],
+): Promise<ReportPageData> {
+  const data = await readReport(client, userId, reportId);
+  const gaps = warningsOf(data).filter((w) => roots.some((r) => w.path === r || w.path.startsWith(`${r}.`)));
+  if (gaps.length > 0) {
+    throw new McpToolError(
+      `SAP Concur could not read all of report ${reportId} (${gaps
+        .map((w) => (w.correlationId ? `${w.path}, correlationId=${w.correlationId}` : w.path))
+        .join('; ')}), so nothing was changed.`,
+      { hint: 'Try again in a moment; if it persists, open the report in Concur to check it.' },
+    );
+  }
+  return data;
+}
+
+/** Today's date in the server's local time zone (YYYY-MM-DD) — what the web app defaults a report to. */
+export function localIsoDate(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** The report after a write, as Concur now shows it (header + entries + exceptions, plus any partial-read warnings). */
 async function observe(client: ConcurClient, userId: string, reportId: string) {
   const data = await readReport(client, userId, reportId);
@@ -297,7 +331,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
           hint: 'Pass `policyId` (see an existing report with concur_get_report).',
         });
       }
-      const reportDate = args.reportDate ?? new Date(client.now()).toISOString().slice(0, 10);
+      const reportDate = args.reportDate ?? localIsoDate(client.now());
       const base = currentSettings(form.fields);
       const settings = await applyOverlays(
         client,
@@ -446,7 +480,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
     },
     async ({ reportId, confirmToken }, ctx) => {
       const userId = await client.userId();
-      const current = compactReport(await readReport(client, userId, reportId));
+      const current = compactReport(await readReportComplete(client, userId, reportId, ['reportEntriesDetails']));
       const expenseIds = current.entries.map((e) => e.expenseId as string);
 
       const gate = await confirmWrite(ctx, {
@@ -612,7 +646,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
     },
     async ({ reportId, acknowledgeWarnings, confirmToken }, ctx) => {
       const userId = await client.userId();
-      const current = compactReport(await readReport(client, userId, reportId));
+      const current = compactReport(await readReportComplete(client, userId, reportId, ['reportExceptions']));
       const blocking = current.exceptions.filter((e) => e.blocking);
       if (blocking.length > 0) {
         throw new McpToolError(

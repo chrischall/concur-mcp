@@ -14,13 +14,15 @@ import {
 } from '../src/graphql/report-writes.js';
 import { GET_REPORT, GET_REPORT_TIMELINE } from '../src/graphql/reports.js';
 import type { FormField } from '../src/tools/forms.js';
-import { registerReportWriteTools } from '../src/tools/report-writes.js';
+import { localIsoDate, registerReportWriteTools } from '../src/tools/report-writes.js';
 import { NOW, SUB, fieldError, gqlPartial, textOf, toolHarness, untrustedPayload } from './helpers.js';
 
 const RID = '0123456789ABCDEF0123';
 const E1 = '0123456789abcdef0123456789abcdef';
 const E2 = 'fedcba9876543210fedcba9876543210';
-const TODAY = new Date(NOW * 1000).toISOString().slice(0, 10);
+const localDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const TODAY = localDate(new Date(NOW * 1000));
 
 let harness: TestHarness | undefined;
 afterEach(async () => {
@@ -55,6 +57,13 @@ async function confirmed(name: string, args: Record<string, unknown>, script: un
   const phase1 = t.sent.length;
   const result = await t.harness.callTool(name, { ...args, confirmToken: first.confirmToken });
   return { preview: first, result, text: textOf(result), sent: t.sent.slice(phase1), jwt: t.jwt };
+}
+
+async function once(name: string, args: Record<string, unknown>, script: unknown[]) {
+  const t = await toolHarness(registerReportWriteTools, script);
+  harness = t.harness;
+  const result = await t.harness.callTool(name, args);
+  return { result, text: textOf(result), sent: t.sent };
 }
 
 const errorsResponse = (errors: unknown[]) =>
@@ -614,6 +623,30 @@ describe('concur_delete_report', () => {
     expect(untrustedPayload(text)).toMatchObject({ deleted: true, deletedExpenses: 1 });
   });
 
+  it('refuses to preview when the expense list came back partial — it could understate what is deleted', async () => {
+    const partial = gqlPartial(
+      reportData({ entries: [entry(E1)] }),
+      fieldError(['reportEntriesDetails', 'entries', 1, 'summary'], 'corr-p'),
+    );
+    const { result, text, sent } = await once('concur_delete_report', { reportId: RID }, [partial]);
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(text).toContain("could not read all of report");
+    expect(text).toContain('correlationId=corr-p');
+    expect(sent.filter((x) => isMutation(x.query))).toEqual([]);
+  });
+
+  it('names the failed part even when Concur gives no correlationId', async () => {
+    const partial = gqlPartial(reportData({ entries: [entry(E1)] }), {
+      message: 'An error occurred',
+      path: ['reportEntriesDetails'],
+      // Not empty: empty extensions is the stale-session signature, which re-lifts and replays.
+      extensions: { dataSource: 'ExpenseReportService', response: { status: 500 } },
+    });
+    const { result, text } = await once('concur_delete_report', { reportId: RID }, [partial]);
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(text).toContain(`could not read all of report ${RID} (reportEntriesDetails)`);
+  });
+
   it('an empty report whose delete fails surfaces Concur’s error as-is (nothing else was deleted)', async () => {
     const { result, text } = await confirmed('concur_delete_report', { reportId: RID }, [
       reportData(),
@@ -837,6 +870,15 @@ describe('concur_submit_report', () => {
   const submitted = reportData({ meta: { isSubmitted: true } });
   const submitOk = (status: unknown) => ({ CDS_expense: { report: { submit: { status } } } });
 
+  it('refuses when the exception list came back partial — a blocking exception could be hidden', async () => {
+    const partial = gqlPartial(reportData({ entries: [entry(E1)] }), fieldError(['reportExceptions'], 'corr-x'));
+    const { result, text, sent } = await once('concur_submit_report', { reportId: RID }, [partial]);
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(text).toContain("could not read all of report");
+    expect(text).toContain('correlationId=corr-x');
+    expect(sent.filter((x) => isMutation(x.query))).toEqual([]);
+  });
+
   it('validates + submits on the spend endpoint with the CDS shape, then reads back the submitted state', async () => {
     const warn = { exceptionCode: 'OLD', isBlocking: false, message: null, expenseId: null };
     const before = reportData({ entries: [entry(E1)], exceptions: [warn] });
@@ -984,5 +1026,20 @@ describe('concur_recall_report', () => {
   it('refuses a report Concur says cannot be recalled', async () => {
     const { text } = await preview('concur_recall_report', { reportId: RID }, [reportData({ meta: { canRecall: false } })]);
     expect(text).toContain(`Report ${RID} cannot be recalled (status: Not Submitted).`);
+  });
+});
+
+describe('localIsoDate', () => {
+  const tz = process.env.TZ;
+  afterEach(() => {
+    process.env.TZ = tz;
+  });
+
+  it('formats the LOCAL calendar date, not the UTC one', () => {
+    process.env.TZ = 'America/Los_Angeles';
+    // 02:00 UTC on 9 Oct is still the evening of 8 Oct in California.
+    expect(localIsoDate(Date.UTC(2026, 9, 9, 2, 0))).toBe('2026-10-08');
+    process.env.TZ = 'Asia/Tokyo';
+    expect(localIsoDate(Date.UTC(2026, 9, 8, 20, 0))).toBe('2026-10-09');
   });
 });
