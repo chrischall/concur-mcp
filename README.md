@@ -138,8 +138,8 @@ Most read tools take `view: compact | full | raw` (default `compact`): `compact`
 | `concur_add_report_comment` | Add a comment approvers will see | **no** (comments cannot be deleted) |
 | `concur_submit_report` | Send a report to your approver | **no** — it reaches a person; `concur_recall_report` can pull it back before approval |
 | `concur_recall_report` | Recall a submitted, unapproved report | yes |
-| `concur_create_expense` | Add an expense to an unsubmitted report | yes |
-| `concur_update_expense` | Change an expense; sends only what changes | yes |
+| `concur_create_expense` | Add an expense to an unsubmitted report; any editable form field by label (custom ones, Ticket Number, From/To Location, …); a foreign currency gets Concur's rate for the date | yes |
+| `concur_update_expense` | Change an expense, including those form fields and the exchange rate; sends only what changes | yes |
 | `concur_delete_expenses` | Delete expenses from a report (card transactions return to available expenses) | **no** |
 | `concur_copy_expense` | Duplicate an expense | yes |
 | `concur_move_available_expenses_to_report` | Move available expenses onto a report | **no** (Concur has no move-back) |

@@ -146,11 +146,11 @@
     },
     {
       "name": "concur_create_expense",
-      "description": "Add an expense to an unsubmitted report (confirmation-gated)"
+      "description": "Add an expense to an unsubmitted report, setting any editable form field by label; foreign currencies get Concur's exchange rate (confirmation-gated)"
     },
     {
       "name": "concur_update_expense",
-      "description": "Change an expense on an unsubmitted report (confirmation-gated)"
+      "description": "Change an expense on an unsubmitted report, including form fields by label and the exchange rate (confirmation-gated)"
     },
     {
       "name": "concur_delete_expenses",
