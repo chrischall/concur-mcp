@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DiskReceiptOutput,
   InlineReceiptOutput,
+  type ReceiptOutput,
   MAX_INLINE_BYTES,
   extensionForMime,
   makeReceiptOutput,
@@ -94,7 +95,8 @@ describe('DiskReceiptOutput', () => {
 
 describe('InlineReceiptOutput', () => {
   it('persists nothing', async () => {
-    const out = new InlineReceiptOutput();
+    // Typed as the interface: callers save through ReceiptOutput, which takes a file.
+    const out: ReceiptOutput = new InlineReceiptOutput();
     expect(out.persistsFiles).toBe(false);
     await expect(out.save({ baseName: 'x', extension: 'png', bytes: new Uint8Array([1]) })).resolves.toBeUndefined();
   });

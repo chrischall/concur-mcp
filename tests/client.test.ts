@@ -339,7 +339,7 @@ describe('legacy OTSESSION cookies', () => {
 
 describe('partial GraphQL errors', () => {
   const partial = (data: unknown, errors: unknown[]) => json(200, { data, errors });
-  const fieldError = (path: string[], extensions: Record<string, unknown> = { correlationId: 'corr-x', dataSource: 'Legacy' }) => ({
+  const fieldError = (path: (string | number)[], extensions: Record<string, unknown> = { correlationId: 'corr-x', dataSource: 'Legacy' }) => ({
     message: 'An error occurred',
     path,
     extensions,
@@ -585,7 +585,7 @@ describe('ConcurClient.upload', () => {
 
 describe('ConcurClient.download', () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-  const bin = (bytes: Uint8Array, status = 200, type = 'image/png') =>
+  const bin = (bytes: Uint8Array<ArrayBuffer>, status = 200, type = 'image/png') =>
     new Response(bytes, { status, headers: { 'content-type': type } });
 
   it('GETs a Concur-hosted URL with the Bearer token and returns the bytes + content type', async () => {
