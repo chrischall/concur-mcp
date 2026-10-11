@@ -17,7 +17,7 @@ import {
 import { warningsField, type ConcurClient } from '../client.js';
 import { GET_REPORT_OWNER, SAVE_EXPENSE_ATTENDEES, SEARCH_ATTENDEES } from '../graphql/attendees.js';
 import { readExpense } from './expense-writes.js';
-import { compactExpense, expenseIdParam, type ExpenseData } from './expenses.js';
+import { compactExpense, expenseIdParam, requireExpense, type ExpenseData } from './expenses.js';
 import { reportIdParam } from './reports.js';
 import { CONTEXT_ROLE, concurView, personName, prune, respond, verify, type PersonName } from './shared.js';
 
@@ -106,7 +106,7 @@ const SEARCH_ESSENTIAL = { essential: ['attendeesByPredictiveSearch'] } as const
 async function search(
   client: ConcurClient,
   searchTerms: string,
-  typeKeys: readonly number[] = DEFAULT_ATTENDEE_TYPE_KEYS,
+  typeKeys: readonly number[],
   includeInactive = false,
 ): Promise<SearchData> {
   return client.spend<SearchData>(
@@ -120,8 +120,12 @@ const describeCandidate = (a: CompactAttendee) =>
   [personName(a) ?? '(no name)', a.emailAddress, a.atnTypeName ?? a.atnTypeCode, a.atnKey].filter(Boolean).join(' · ');
 
 /** The one attendee `term` names: an exact email match, else the only result. */
-async function resolveTerm(client: ConcurClient, term: string): Promise<CompactAttendee & { atnKey: string }> {
-  const people = rowsOf(await search(client, term)).filter(isPerson);
+async function resolveTerm(
+  client: ConcurClient,
+  term: string,
+  typeKeys: readonly number[],
+): Promise<CompactAttendee & { atnKey: string }> {
+  const people = rowsOf(await search(client, term, typeKeys)).filter(isPerson);
   const byEmail = people.filter((a) => norm(a.emailAddress) !== '' && norm(a.emailAddress) === norm(term));
   if (byEmail.length === 1) return byEmail[0]!;
   if (people.length === 1) return people[0]!;
@@ -136,7 +140,12 @@ async function resolveTerm(client: ConcurClient, term: string): Promise<CompactA
 }
 
 /** The signed-in employee's own attendee record, found by the report owner's name. */
-async function resolveMe(client: ConcurClient, userId: string, reportId: string): Promise<CompactAttendee & { atnKey: string }> {
+async function resolveMe(
+  client: ConcurClient,
+  userId: string,
+  reportId: string,
+  typeKeys: readonly number[],
+): Promise<CompactAttendee & { atnKey: string }> {
   const data = await client.spend<OwnerData>(
     GET_REPORT_OWNER,
     { userId, reportId, contextRole: CONTEXT_ROLE },
@@ -147,7 +156,7 @@ async function resolveMe(client: ConcurClient, userId: string, reportId: string)
     'Pass includeMe: false and add your own email address to `attendees` (find it with concur_search_attendees).';
   if (!me?.lastName) throw new McpToolError('Could not identify you as an attendee: the report has no owner name.', { hint });
   const firstNames = new Set([norm(me.firstName), norm(me.preferredName)].filter(Boolean));
-  const matches = rowsOf(await search(client, me.lastName))
+  const matches = rowsOf(await search(client, me.lastName, typeKeys))
     .filter(isPerson)
     .filter(
       (a) =>
@@ -157,7 +166,7 @@ async function resolveMe(client: ConcurClient, userId: string, reportId: string)
     );
   if (matches.length === 1) return matches[0]!;
   throw new McpToolError(
-    `Could not identify you as an attendee: ${matches.length} employee records match "${personName(me) ?? me.lastName}".`,
+    `Could not identify you as an attendee: ${matches.length} employee records match "${personName(me)}".`,
     { hint },
   );
 }
@@ -165,7 +174,7 @@ async function resolveMe(client: ConcurClient, userId: string, reportId: string)
 /** The re-read's attendee view of the expense. */
 function attendeeState(data: ExpenseData) {
   const expense = compactExpense(data);
-  const entry = data.employee?.expenseReport?.entry ?? {};
+  const { entry } = requireExpense(data);
   const meta = (entry.meta ?? {}) as Record<string, unknown>;
   const n = expense.exceptions.length;
   return {
@@ -178,6 +187,23 @@ function attendeeState(data: ExpenseData) {
 }
 
 // ── registration ──────────────────────────────────────────────────────────
+
+const attendeeTypeKeysParam = (use = '') =>
+  z
+    .array(z.number().int())
+    .min(1)
+    .max(20)
+    .optional()
+    .describe(
+      `Attendee type keys to search (default ${JSON.stringify(DEFAULT_ATTENDEE_TYPE_KEYS)}, what the web app sent for a meal expense). Tenant-specific.${use && ` ${use}`}`,
+    );
+
+/** An attendee given exactly, as a concur_search_attendees row names it — no search needed. */
+const exactAttendee = z.object({
+  atnKey: z.string().trim().min(1).max(200).describe('The `atnKey` concur_search_attendees answered.'),
+  typeCode: z.string().trim().min(1).max(40).describe('That row’s `typeCode` (e.g. SYSEMP).'),
+  versionNumber: z.number().int().min(0).describe('That row’s `versionNumber`.'),
+});
 
 export function registerAttendeeTools(server: McpServer, client: ConcurClient): void {
   server.registerTool(
@@ -192,14 +218,7 @@ export function registerAttendeeTools(server: McpServer, client: ConcurClient): 
       annotations: toolAnnotations({ title: 'Search Concur attendees', readOnly: true, openWorld: true }),
       inputSchema: z.object({
         query: z.string().trim().min(1).max(100).describe('Name or email text to search for, e.g. "pat.example@example.com" or "Example".'),
-        attendeeTypeKeys: z
-          .array(z.number().int())
-          .min(1)
-          .max(20)
-          .optional()
-          .describe(
-            `Attendee type keys to search (default ${JSON.stringify(DEFAULT_ATTENDEE_TYPE_KEYS)}, what the web app sent for a meal expense). Tenant-specific.`,
-          ),
+        attendeeTypeKeys: attendeeTypeKeysParam(),
         includeInactive: z.boolean().default(false).describe('Include inactive employees (default false).'),
         view: concurView('compact keeps key, name, email, company, title and type; full adds ids, middle initial, suffix and favorite.'),
       }),
@@ -228,7 +247,9 @@ export function registerAttendeeTools(server: McpServer, client: ConcurClient): 
       description:
         'Set the attendees on an expense in an unsubmitted SAP Concur report (e.g. a group meal). This REPLACES the ' +
         'expense’s whole attendee list. Each entry of `attendees` is an email address or name that must resolve to ' +
-        'exactly one person (an exact email match wins; otherwise the candidates are listed). With includeMe ' +
+        'exactly one person (an exact email match wins; otherwise the candidates are listed), or an exact ' +
+        '{atnKey, typeCode, versionNumber} copied from a concur_search_attendees row (used as given, no search). ' +
+        'Names are searched with attendeeTypeKeys (same default as concur_search_attendees). With includeMe ' +
         '(default true) you are added first. The expense amount is split evenly across everyone (to the cent, the ' +
         'remainder on the last person). The preview lists each attendee and amount; afterwards the expense is ' +
         're-read for its attendee count and any remaining exceptions. ' +
@@ -238,14 +259,18 @@ export function registerAttendeeTools(server: McpServer, client: ConcurClient): 
         reportId: reportIdParam,
         expenseId: expenseIdParam,
         attendees: z
-          .array(z.string().trim().min(1).max(100))
+          .array(z.union([z.string().trim().min(1).max(100), exactAttendee]))
           .max(50)
-          .describe('Email addresses (preferred) or names, one per attendee, NOT including yourself when includeMe is true.'),
+          .describe(
+            'One per attendee, NOT including yourself when includeMe is true: an email address (preferred) or name, or ' +
+              'an exact {atnKey, typeCode, versionNumber} from concur_search_attendees.',
+          ),
         includeMe: z.boolean().default(true).describe('Put the signed-in employee first on the list (default true).'),
+        attendeeTypeKeys: attendeeTypeKeysParam('Used for every name/email lookup, including finding you.'),
         confirmToken: confirmTokenParam,
       }),
     },
-    async ({ reportId, expenseId, attendees, includeMe, confirmToken }, ctx) => {
+    async ({ reportId, expenseId, attendees, includeMe, attendeeTypeKeys, confirmToken }, ctx) => {
       if (attendees.length === 0 && !includeMe) {
         throw new McpToolError('An expense needs at least one attendee.', {
           hint: 'Name someone in `attendees`, or leave includeMe true.',
@@ -254,7 +279,7 @@ export function registerAttendeeTools(server: McpServer, client: ConcurClient): 
       const userId = await client.userId();
       const data = await readExpense(client, userId, reportId, expenseId);
       const before = compactExpense(data);
-      const entry = data.employee?.expenseReport?.entry ?? {};
+      const { entry } = requireExpense(data);
       const total = entry.transactionAmount as { value?: number | null; currencyCode?: string | null } | null | undefined;
       if (typeof total?.value !== 'number') {
         throw new McpToolError('This expense has no transaction amount to split across attendees.', {
@@ -268,8 +293,15 @@ export function registerAttendeeTools(server: McpServer, client: ConcurClient): 
       const add = (a: CompactAttendee & { atnKey: string }, me = false) => {
         if (!chosen.some((c) => c.atnKey === a.atnKey)) chosen.push(me ? { ...a, me: true } : a);
       };
-      if (includeMe) add(await resolveMe(client, userId, reportId), true);
-      for (const term of attendees) add(await resolveTerm(client, term));
+      const typeKeys = attendeeTypeKeys ?? DEFAULT_ATTENDEE_TYPE_KEYS;
+      if (includeMe) add(await resolveMe(client, userId, reportId, typeKeys), true);
+      for (const term of attendees) {
+        add(
+          typeof term === 'string'
+            ? await resolveTerm(client, term, typeKeys)
+            : { atnKey: term.atnKey, atnTypeCode: term.typeCode, versionNumber: term.versionNumber },
+        );
+      }
 
       const shares = splitEvenly(total.value, chosen.length);
       const rows = chosen.map((a, i) => ({

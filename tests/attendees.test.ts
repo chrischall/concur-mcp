@@ -172,6 +172,12 @@ describe('concur_search_attendees', () => {
     expect(sent[0]!.variables).toMatchObject({ includeInactiveEmp: true, includeAtnTypeKeys: [1] });
   });
 
+  it('answers no attendees when the search returns a null list', async () => {
+    const { text } = await call('concur_search_attendees', { query: 'pat' }, [{ attendeesByPredictiveSearch: { attendees: null } }]);
+    expect(untrustedPayload(text)).toMatchObject({ attendees: [] });
+    expect(untrustedPayload(text).groups).toBeUndefined();
+  });
+
   it('full keeps every selected field', async () => {
     const { text } = await call('concur_search_attendees', { query: 'pat', view: 'full' }, [found(PAT)]);
     expect(untrustedPayload(text).attendees).toEqual([PAT]);
@@ -365,6 +371,146 @@ describe('concur_set_attendees', () => {
     expect(out).toMatchObject({ saved: true, attendeeKeys: ['frTESTKEYME=='] });
     expect(out.verified).toBeUndefined();
     expect(out.verificationError).toMatch(/The change was made, but re-reading it failed: .*correlationId=corr-reread/);
+  });
+
+  it('searches every resolution with the given attendeeTypeKeys (issue #12)', async () => {
+    const r = [expense(20), owner(), found(ME), found(PAT)];
+    const { phase1, sent } = await confirmed(
+      'concur_set_attendees',
+      { reportId: RID, expenseId: E1, attendees: ['pat.example@example.com'], attendeeTypeKeys: [7, 42] },
+      [...r, ...r, saved(), expense(20)],
+    );
+    const searches = [...phase1, ...sent].filter((s) => s.query === SEARCH_ATTENDEES);
+    expect(searches).toHaveLength(4);
+    for (const s of searches) expect(s.variables).toMatchObject({ includeAtnTypeKeys: [7, 42] });
+  });
+
+  it('defaults resolution searches to the same type keys as concur_search_attendees', async () => {
+    const { sent } = await call('concur_set_attendees', { reportId: RID, expenseId: E1, attendees: ['pat.example@example.com'] }, [
+      expense(20),
+      owner(),
+      found(ME),
+      found(PAT),
+    ]);
+    const searches = sent.filter((s) => s.query === SEARCH_ATTENDEES);
+    expect(searches.map((s) => s.variables.includeAtnTypeKeys)).toEqual([
+      [1, 2001],
+      [1, 2001],
+    ]);
+  });
+
+  it('takes an attendee as an exact {atnKey, typeCode, versionNumber} from concur_search_attendees, with no search (issue #12)', async () => {
+    const guest = { atnKey: 'frTESTKEYGUEST==', typeCode: 'BUSGUEST', versionNumber: 4 };
+    const r = [expense(30), owner(), found(ME)];
+    const { preview: p, phase1, sent } = await confirmed(
+      'concur_set_attendees',
+      { reportId: RID, expenseId: E1, attendees: [guest, 'pat.example@example.com'] },
+      [...r, found(PAT), ...r, found(PAT), saved(), expense(30)],
+    );
+    expect(phase1.map((s) => s.query)).toEqual([GET_EXPENSE, GET_REPORT_OWNER, SEARCH_ATTENDEES, SEARCH_ATTENDEES]);
+    expect(phase1[3]!.variables).toMatchObject({ searchTerms: 'pat.example@example.com' });
+    expect(p.preview.attendees).toEqual([
+      expect.objectContaining({ atnKey: 'frTESTKEYME==', me: true }),
+      { typeCode: 'BUSGUEST', atnKey: 'frTESTKEYGUEST==', amount: '10 USD' },
+      expect.objectContaining({ atnKey: 'frTESTKEYPAT==' }),
+    ]);
+    const params = sent.find((s) => s.query === SAVE_EXPENSE_ATTENDEES)!.variables.params as { attendees: Array<Record<string, unknown>> };
+    expect(params.attendees[1]).toEqual({
+      atnKey: 'frTESTKEYGUEST==',
+      atnTypeCode: 'BUSGUEST',
+      versionNumber: 4,
+      instanceCount: 1,
+      isAmtEdited: 'N',
+      transactionAmount: 10,
+    });
+  });
+
+  it('does not list an exact-key attendee twice when it is also me', async () => {
+    const r = [expense(20), owner(), found(ME)];
+    const { sent } = await confirmed(
+      'concur_set_attendees',
+      { reportId: RID, expenseId: E1, attendees: [{ atnKey: 'frTESTKEYME==', typeCode: 'SYSEMP', versionNumber: 1 }] },
+      [...r, ...r, saved(), expense(20)],
+    );
+    const params = sent.find((s) => s.query === SAVE_EXPENSE_ATTENDEES)!.variables.params as { attendees: Array<Record<string, unknown>> };
+    expect(params.attendees.map((a) => a.atnKey)).toEqual(['frTESTKEYME==']);
+  });
+
+  it('rejects an exact-key attendee missing its type code or version', async () => {
+    const { result, sent } = await call(
+      'concur_set_attendees',
+      { reportId: RID, expenseId: E1, attendees: [{ atnKey: 'frTESTKEYGUEST==' }] },
+      [],
+    );
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(sent).toEqual([]);
+  });
+
+  it('defaults a search row with no type code or version to an employee, version 1', async () => {
+    const bare = person('frTESTKEYBARE==', 'Robin', 'Example', 'robin.example@example.com', { atnTypeCode: null, versionNumber: null });
+    const r = [expense(10), found(bare)];
+    const { sent } = await confirmed(
+      'concur_set_attendees',
+      { reportId: RID, expenseId: E1, attendees: ['robin.example@example.com'], includeMe: false },
+      [...r, ...r, saved(), expense(10)],
+    );
+    const params = sent.find((s) => s.query === SAVE_EXPENSE_ATTENDEES)!.variables.params as { attendees: Array<Record<string, unknown>> };
+    expect(params.attendees[0]).toMatchObject({ atnKey: 'frTESTKEYBARE==', atnTypeCode: 'SYSEMP', versionNumber: 1 });
+  });
+
+  it('lists nameless candidates by type code when a term is ambiguous', async () => {
+    const anon = (key: string) =>
+      person(key, '', '', '', { firstName: null, lastName: null, emailAddress: null, atnTypeName: null, atnTypeCode: 'BUSGUEST' });
+    const { text } = await call('concur_set_attendees', { reportId: RID, expenseId: E1, attendees: ['guest'], includeMe: false }, [
+      expense(10),
+      found(anon('frTESTKEYA=='), anon('frTESTKEYB==')),
+    ]);
+    expect(text).toContain('"guest" matches 2 attendees');
+    expect(text).toContain('(no name) · BUSGUEST · frTESTKEYA==');
+  });
+
+  it('refuses to guess me when the report owner has no last name', async () => {
+    const { text, sent } = await call('concur_set_attendees', { reportId: RID, expenseId: E1, attendees: [] }, [
+      expense(10),
+      owner('Sam', ''),
+    ]);
+    expect(text).toContain('the report has no owner name');
+    expect(sent.map((s) => s.query)).not.toContain(SEARCH_ATTENDEES);
+  });
+
+  it('names the owner by last name alone when it has no first name', async () => {
+    const { text } = await call('concur_set_attendees', { reportId: RID, expenseId: E1, attendees: [] }, [
+      expense(10),
+      owner('', 'Sample'),
+      found(),
+    ]);
+    expect(text).toContain('0 employee records match "Sample"');
+  });
+
+  it('previews and saves an expense with no currency, type, attendee count or meta', async () => {
+    const bare = expense(10, { transactionAmount: { value: 10, currencyCode: null }, expenseType: null, attendeeCount: null, meta: null });
+    const r = [bare, owner(), found(ME)];
+    const { preview: p, text } = await confirmed('concur_set_attendees', { reportId: RID, expenseId: E1, attendees: [] }, [
+      ...r,
+      ...r,
+      saved(),
+      bare,
+    ]);
+    expect(p.preview.action).toContain(`expense ${E1} (expense, 10)`);
+    expect(p.preview.currentAttendeeCount).toBeUndefined();
+    expect((p.preview.attendees as Array<{ amount: string }>)[0]!.amount).toBe('10');
+    const out = untrustedPayload(text);
+    expect(out.verified).toEqual({ hasAttendees: false, exceptions: [] });
+  });
+
+  it('reports a save with no status as unconfirmed', async () => {
+    const r = [expense(10), owner(), found(ME)];
+    const { text } = await confirmed('concur_set_attendees', { reportId: RID, expenseId: E1, attendees: [] }, [
+      ...r,
+      ...r,
+      { employee: { saveAttendeesLegacy: null } },
+    ]);
+    expect(text).toContain('did not confirm saving the attendees (status: null)');
   });
 
   it('reports an unconfirmed save', async () => {

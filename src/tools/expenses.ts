@@ -106,7 +106,7 @@ export const EXPENSE_ESSENTIAL = { essential: ['employee.expenseReport.entry'] }
 /** What an available-expense page cannot do without. */
 export const AVAILABLE_ESSENTIAL = { essential: ['employee.availableExpensesWithPagination'] } as const;
 
-function requireExpense(data: ExpenseData) {
+export function requireExpense(data: ExpenseData) {
   const report = data.employee?.expenseReport;
   if (!report?.entry) {
     throw new McpToolError('SAP Concur returned no expense with that id on that report for the signed-in user.', {

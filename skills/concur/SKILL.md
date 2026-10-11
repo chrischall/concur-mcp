@@ -60,8 +60,10 @@ or sign back in to their Concur tab — there is nothing to fix on this side.
    `concur_search_locations`, `concur_list_currencies`.
 5. **Attendees** (group meals and the like): `concur_search_attendees` shows who
    a name or email resolves to; `concur_set_attendees` takes emails (preferred)
-   or names, each of which must match exactly one person, and splits the
-   expense amount evenly.
+   or names, each of which must match exactly one person, or an exact
+   `{atnKey, typeCode, versionNumber}` copied from a search row, and splits the
+   expense amount evenly. If you searched with `attendeeTypeKeys`, pass the same
+   keys to `concur_set_attendees`.
 
 Most read tools take `view`: `compact` (default) is enough to browse and decide;
 ask for `full` only when you need a field compact omits, and `raw` only to debug.
