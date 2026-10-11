@@ -339,7 +339,7 @@ const formFieldOf = (form: readonly FormField[], ...ids: string[]) => form.find(
 /** Refuse named text arguments longer than their form fields allow. */
 function checkNamedLengths(form: readonly FormField[], args: { vendor?: string; comment?: string }, businessPurpose: string | undefined) {
   if (businessPurpose !== undefined) checkLength(formFieldOf(form, 'businessPurpose'), businessPurpose, 'Business Purpose');
-  if (args.vendor !== undefined) checkLength(formFieldOf(form, 'vendorName'), args.vendor, 'Vendor');
+  if (args.vendor !== undefined) checkLength(formFieldOf(form, 'vendorName', 'vendor', 'vendorAndVendorName'), args.vendor, 'Vendor');
   if (args.comment !== undefined) checkLength(formFieldOf(form, 'comment'), args.comment, 'Comment');
 }
 

@@ -331,6 +331,13 @@ describe('concur_create_expense — standard fields', () => {
     const comment = await preview('concur_create_expense', { ...base, comment: 'c'.repeat(501) }, [header(), newForm()]);
     expect(comment.text).toContain('"Comment" is 501 characters; this expense form allows at most 500.');
   });
+
+  it.each(['vendor', 'vendorAndVendorName'])('checks the vendor limit on a form whose vendor field id is %s', async (id) => {
+    const form = RAIL.map((f) => (f.id === 'vendorName' ? { ...f, id } : f));
+    const { text, sent } = await preview('concur_create_expense', { ...base, vendor: 'v'.repeat(41) }, [header(), newForm(form)]);
+    expect(text).toContain('"Vendor" is 41 characters; this expense form allows at most 40.');
+    expect(sent.filter((s) => isMutation(s.query))).toEqual([]);
+  });
 });
 
 // ── create: foreign currency ──────────────────────────────────────────────
