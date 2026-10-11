@@ -145,6 +145,13 @@ Most read tools take `view: compact | full | raw` (default `compact`): `compact`
 | `concur_move_available_expenses_to_report` | Move available expenses onto a report | **no** (Concur has no move-back) |
 | `concur_delete_available_expenses` | Delete available expenses | **no** |
 
+### Attendees
+
+| Tool | What it does | Reversible? |
+|---|---|---|
+| `concur_search_attendees` | Search the attendee directory (colleagues, saved guests) by name or email | read |
+| `concur_set_attendees` | **Replace** an expense's attendee list (you first by default), splitting the amount evenly — confirmation-gated | **no** (no tool reads the previous list back, or clears it) |
+
 ### Receipts
 
 | Tool | What it does | Gated? |

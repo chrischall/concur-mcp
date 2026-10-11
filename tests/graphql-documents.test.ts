@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { graphqlOperationKinds, isReadOnlyGraphqlDocument } from '@chrischall/mcp-utils/graphql';
+import * as attendees from '../src/graphql/attendees.js';
 import * as expenseWrites from '../src/graphql/expense-writes.js';
 import * as expenses from '../src/graphql/expenses.js';
 import * as lookups from '../src/graphql/lookups.js';
@@ -44,7 +45,9 @@ describe('read documents', () => {
   });
 
   it('no tool document selects the unused legacy keys rptKey / rpeKey', () => {
-    const all = Object.values({ ...reports, ...expenses, ...lookups, ...forms, ...reportWrites, ...receipts, ...expenseWrites, ...travel });
+    const all = Object.values({
+      ...reports, ...expenses, ...lookups, ...forms, ...reportWrites, ...receipts, ...expenseWrites, ...travel, ...attendees,
+    });
     for (const doc of all) {
       if (typeof doc !== 'string') continue;
       expect(doc).not.toMatch(/\brptKey\b/);
@@ -215,5 +218,40 @@ describe('travel documents', () => {
     expect(travel.GET_TRIP_HISTORY).toMatch(/^query loadTripHistory\(/);
     expect(travel.SEND_ITINERARY).toMatch(/^mutation sendItinerary\(\$input: TravelTripSendItineraryEmailInput!\)/);
     for (const [, doc] of travelDocs) expect(doc).not.toMatch(/\.\.\.[A-Za-z]/);
+  });
+});
+
+const attendeeDocs = Object.entries(attendees) as Array<[string, string]>;
+
+describe('attendee documents', () => {
+  it('covers the attendee search, the report-owner read and the attendee save', () => {
+    expect(attendeeDocs.map(([name]) => name).sort()).toEqual(
+      ['GET_REPORT_OWNER', 'SAVE_EXPENSE_ATTENDEES', 'SEARCH_ATTENDEES'].sort(),
+    );
+  });
+
+  it.each(attendeeDocs)('%s lexes as exactly one operation of the kind its keyword says', (_name, doc) => {
+    const kind = /^\s*(query|mutation)/.exec(doc)![1];
+    expect(graphqlOperationKinds(doc)).toEqual([kind]);
+    expect(isReadOnlyGraphqlDocument(doc)).toBe(kind === 'query');
+  });
+
+  it.each(attendeeDocs)('%s has balanced braces and parentheses and declares every variable it uses', (_name, doc) => {
+    const count = (ch: string) => doc.split(ch).length - 1;
+    expect(count('{')).toBe(count('}'));
+    expect(count('(')).toBe(count(')'));
+    const declared = new Set([...doc.matchAll(/\$(\w+)\s*:/g)].map((m) => m[1]));
+    const used = new Set([...doc.matchAll(/\$(\w+)\b(?!\s*:)/g)].map((m) => m[1]));
+    expect([...used].filter((v) => !declared.has(v))).toEqual([]);
+    expect([...declared].filter((v) => !used.has(v))).toEqual([]);
+  });
+
+  it('names each operation as the bundle does and uses no unresolved fragments', () => {
+    expect(attendees.SEARCH_ATTENDEES).toMatch(/^query GetAttendeesByPredictiveSearch\(/);
+    expect(attendees.SAVE_EXPENSE_ATTENDEES).toMatch(
+      /^mutation SaveExpenseAttendees\(\s*\$userId: String!\s*\$contextRole: ContextRoleType!\s*\$params: SaveAttendeesLegacyParams!\s*\)/,
+    );
+    expect(attendees.SAVE_EXPENSE_ATTENDEES).toContain('saveAttendeesLegacy(params: $params)');
+    for (const [, doc] of attendeeDocs) expect(doc).not.toMatch(/\.\.\.[A-Za-z]/);
   });
 });

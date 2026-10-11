@@ -1768,3 +1768,16 @@ query GetApproversList(
       userId
     }
   }
+
+### SaveExpenseAttendees
+mutation SaveExpenseAttendees(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $params: SaveAttendeesLegacyParams!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      saveAttendeesLegacy(params: $params) {
+        status
+      }
+    }
+  }

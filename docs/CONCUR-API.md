@@ -224,6 +224,42 @@ report failed with an opaque GraphQL error (2026-10-11); existing GBP entries re
 `{userId, contextRole, reportId}` → `employee.expenseReport.deleteReport.status.success`.
 The UI deletes the report's entries first (`DeleteExpenseEntries`), then the report.
 
+### Expense attendees — CAPTURED from the real UI (2026-10-11)
+Adding a colleague to a Group Meals expense, the UI ran `GetAttendeesMeta` →
+`GetMRUAttendees` → `GetAttendeesByPredictiveSearch` (once per keystroke burst)
+→ `SaveExpenseAttendees` → re-read `GetExistingExpenseEntry`. Texts are in
+`docs/api/spend-reads.graphql` / `spend-operations.graphql`.
+
+- **Search** — `attendeesByPredictiveSearch(searchTerms, includeInactiveEmp,
+  includeAtnTypeKeys, excludeKeys){ attendees { ...on CompactAttendee | ...on AttendeeGroup } }`.
+  The UI sent `{searchTerms: "<typed text>", includeInactiveEmp: false,
+  includeAtnTypeKeys: [1, 2001], allowedAtnTypeKeys: [1, 2001], excludeKeys: [],
+  includeAttendeeDetails: false, userId}`. Employees come back with
+  `atnTypeCode: "SYSEMP"`. Type keys are tenant / expense-type specific; `[1, 2001]`
+  is what this tenant's Group Meals type used. concur-mcp drops the `details`
+  selection (and the variables only it uses).
+- **Save** — `employee(userId, contextRole){ saveAttendeesLegacy(params){ status } }`:
+  ```
+  params: { reportId, entryId: <expenseId>, attendees: [
+    { atnKey: <the employee themself>, atnTypeCode: "SYSEMP", versionNumber: 1, instanceCount: 1, transactionAmount: 38.91 },
+    { atnKey: <colleague>, atnTypeCode: "SYSEMP", versionNumber: 1, instanceCount: 1, isAmtEdited: "N", transactionAmount: 38.92 } ] }
+  resp: data.employee.saveAttendeesLegacy.status === "SUCCESS!"
+  ```
+  for a 77.83 USD expense. The list is the COMPLETE attendee list — it
+  replaces — and includes the signed-in employee; amounts are an even split in
+  the expense's transaction currency, rounding remainder on the last row.
+  Afterwards the entry's `meta.hasAttendees` was true, `attendeeCount` set, and
+  the Group Meals exception cleared. concur-mcp sends `isAmtEdited: "N"` on
+  every row (the UI omitted it on the employee's own row).
+- `GetAttendeesMeta(rptKey, …)` needs the legacy `rptKey` (→ `rpeKey`, …); the
+  current attendee list (`GetAttendees(rpeKey, empKey, polKey)`) needs keys no
+  documented field supplies, so concur-mcp does not read the list back — it
+  re-reads `attendeeCount` / `meta.hasAttendees` instead.
+- The signed-in employee's own `atnKey` is not in any documented identity
+  field; concur-mcp finds it by searching the report owner's last name
+  (`GetReportPageData` `reportDetails.employee`) and keeping the one SYSEMP
+  row whose first or preferred name matches.
+
 ### From the bundle, NOT yet exercised (shapes in `docs/api/spend-operations.graphql`)
 - `MoveAvailableExpensesToReport(userId, contextRole, ids, reportId)`
 - `DeleteAvailableExpenses`
@@ -232,7 +268,7 @@ The UI deletes the report's entries first (`DeleteExpenseEntries`), then the rep
 - `DeleteReceipt(imageId)`
 - `SubmitExpenseReport` — **CDS-namespaced**: `CDS_expense.report.submit(contextType, id, userId, validate, reportSource, approverValidated){status}`. Reaches the approver. NEVER live-tested.
 - `RecallReport(contextRole, reportId, userId)` — NEVER live-tested.
-- `CopyExpenseEntry`, `MoveExpense`, `UpdateReportHeader`, allocations, attendees, itemizations.
+- `CopyExpenseEntry`, `MoveExpense`, `UpdateReportHeader`, allocations, itemizations.
 - `MoveExpense` moves entries report → report (`fromReportId`/`toReportId`); nothing in the
   bundle moves an entry back to available expenses, so `MoveAvailableExpensesToReport` has no
   inverse (deleting the entry is the only way off the report).

@@ -4,6 +4,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { ConcurClient } from '../client.js';
+import { registerAttendeeTools } from './attendees.js';
 import { registerExpenseWriteTools } from './expense-writes.js';
 import { registerExpenseTools } from './expenses.js';
 import { registerGraphqlTools } from './graphql.js';
@@ -23,6 +24,7 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
   registerExpenseTools,
   registerReportWriteTools,
   registerExpenseWriteTools,
+  registerAttendeeTools,
   registerReceiptTools,
   registerTravelTools,
   registerGraphqlTools,
