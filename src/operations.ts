@@ -108,6 +108,7 @@ const SPEND_DOCUMENTED: Readonly<Record<string, string>> = {
   GetCardAccounts: 'spend-reads.graphql',
   GetApproversList: 'spend-reads.graphql',
   GetUserPermissions: 'spend-reads.graphql',
+  GetExchangeRate: 'spend-reads.graphql',
   CreateReport: 'spend-operations.graphql',
   CreateReportHeader: 'spend-operations.graphql',
   UpdateReportHeader: 'spend-operations.graphql',

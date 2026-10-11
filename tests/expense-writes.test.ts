@@ -4,6 +4,7 @@ import {
   COPY_EXPENSE,
   CREATE_EXPENSE,
   DELETE_AVAILABLE_EXPENSES,
+  EXCHANGE_RATE,
   EXPENSE_FORM,
   MOVE_AVAILABLE_EXPENSES,
   NEW_EXPENSE_FORM,
@@ -326,13 +327,16 @@ describe('concur_create_expense', () => {
     expect(parsed().status).toBe('confirmation-required');
   });
 
-  it('defaults payment from the form, leaves a foreign rate to Concur, flags required gaps, and reports exceptions', async () => {
+  it('defaults payment from the form, fetches a foreign rate, flags required gaps, and reports exceptions', async () => {
     const args = { ...base, expenseType: 'DUESX', amount: 10, currency: 'eur' };
+    const eurRate = { exchangeRate: { rate: 1.08, date: '2026-10-02' } };
     const { preview: p, text, sent } = await confirmed('concur_create_expense', args, [
       header(),
       newForm(),
+      eurRate,
       header(),
       newForm(),
+      eurRate,
       { createExpense: { id: E1 } },
       expenseData(E1, [{ message: 'Missing required information', exceptionCode: 'MISS', isBlocking: false }]),
     ]);
@@ -344,15 +348,15 @@ describe('concur_create_expense', () => {
       custom15: { value: 'false' },
       custom7: { value: null },
     });
-    expect(p.preview.willSend.fields.exchangeRate).toBeUndefined();
-    expect(p.preview.exchangeRate).toMatch(/EUR differs from the report currency USD/);
+    expect(p.preview.willSend.fields.exchangeRate).toEqual({ operation: 'MULTIPLY', value: 1.08 });
+    expect(p.preview.exchangeRate).toBe('1 EUR = 1.08 USD (Concur’s rate for 2026-10-02)');
     expect(p.preview.missingRequired).toEqual([
       { label: 'Business Purpose', field: 'businessPurpose' },
       { label: 'Ticket', field: 'custom7' },
       { label: 'Vendor', field: 'vendorName' },
     ]);
     expect(p.preview.caveat).toMatch(/missing required information/);
-    expect(sent.map((s) => s.query)).toEqual([NEW_EXPENSE_FORM, NEW_EXPENSE_FORM, CREATE_EXPENSE, GET_EXPENSE]);
+    expect(sent.map((s) => s.query)).toEqual([NEW_EXPENSE_FORM, NEW_EXPENSE_FORM, EXCHANGE_RATE, CREATE_EXPENSE, GET_EXPENSE]);
     const out = untrustedPayload(text).verified as Record<string, unknown>;
     expect(out.observedExceptions).toMatch(/1 exception/);
     expect(out.exceptions).toEqual([{ message: 'Missing required information', code: 'MISS' }]);
@@ -454,10 +458,10 @@ describe('concur_create_expense', () => {
 
   it.each([
     [{ Nope: 'x' }, FORM, 'This expense form has no field "Nope".', 'Settable fields: Project; Sub-project; Billable; Ticket; Region.'],
-    [{ Vendor: 'x' }, FORM, 'The "Vendor" field cannot be set through `fields`.', 'settable custom fields: Project;'],
+    [{ Vendor: 'x' }, FORM, 'The "Vendor" field cannot be set through `fields`.', 'Use the `vendor` argument for "Vendor". Settable fields: Project;'],
     [{ 'Cost Center': 'x' }, FORM, 'The "Cost Center" field cannot be set through `fields`.', 'Region.'],
-    [{ Nope: 'x' }, FORM.slice(0, 2), 'no field "Nope"', 'This expense type has no custom fields.'],
-    [{ 'Business Purpose': 'x' }, FORM.slice(0, 2), 'cannot be set through', 'for standard fields.'],
+    [{ Nope: 'x' }, FORM.slice(0, 2), 'no field "Nope"', 'This expense type has no settable fields.'],
+    [{ 'Business Purpose': 'x' }, FORM.slice(0, 2), 'cannot be set through', 'Use the `businessPurpose` argument for "Business Purpose".'],
   ])('refuses fields %j', async (fields, form, message, hint) => {
     const { text } = await preview('concur_create_expense', { ...base, paymentType: 'cash', fields }, [header(), newForm(form), payments]);
     expect(text).toContain(message);
@@ -705,9 +709,16 @@ describe('concur_update_expense', () => {
     expect(out).toMatchObject({ updated: true, expenseId: E1, changedFields: ['Vendor'], response: null });
   });
 
-  it('changes only the currency, keeping the amount', async () => {
-    const { parsed } = await preview('concur_update_expense', { ...ids, currency: 'cad' }, [existing()]);
-    expect(parsed().preview.willSend.fields).toEqual({ transactionAmount: { value: 12.5, currencyCode: 'CAD' } });
+  it('changes only the currency, keeping the amount (and fetching the new rate)', async () => {
+    const { parsed, sent } = await preview('concur_update_expense', { ...ids, currency: 'cad' }, [
+      existing(),
+      { exchangeRate: { rate: 0.73, date: '2026-10-02' } },
+    ]);
+    expect(parsed().preview.willSend.fields).toEqual({
+      transactionAmount: { value: 12.5, currencyCode: 'CAD' },
+      exchangeRate: { operation: 'MULTIPLY', value: 0.73 },
+    });
+    expect(sent[1]!.variables).toEqual({ baseCurrency: 'CAD', quoteCurrency: 'USD', date: '2026-10-02' });
   });
 
   it('reads an expense with no amount, vendor, location or payment as empty', async () => {

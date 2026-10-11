@@ -105,12 +105,13 @@ describe('report write documents', () => {
 const expenseWriteDocs = Object.entries(expenseWrites) as Array<[string, string]>;
 
 describe('expense write documents', () => {
-  it('covers the expense forms and every expense mutation', () => {
+  it('covers the expense forms, the exchange-rate lookup and every expense mutation', () => {
     expect(expenseWriteDocs.map(([name]) => name).sort()).toEqual(
       [
         'COPY_EXPENSE',
         'CREATE_EXPENSE',
         'DELETE_AVAILABLE_EXPENSES',
+        'EXCHANGE_RATE',
         'EXPENSE_FORM',
         'MOVE_AVAILABLE_EXPENSES',
         'NEW_EXPENSE_FORM',

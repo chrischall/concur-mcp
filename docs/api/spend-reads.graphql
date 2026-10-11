@@ -2306,5 +2306,15 @@ query GetAttendeesMeta(
       uiParentRpeKey
       canCopyFromRequest
       showCopyFromRequest
+
+### GetExchangeRate
+query GetExchangeRate(
+    $baseCurrency: String!
+    $quoteCurrency: String!
+    $date: String!
+  ) {
+    exchangeRate(base: $baseCurrency, quote: $quoteCurrency, date: $date) {
+      rate
+      date
     }
   }

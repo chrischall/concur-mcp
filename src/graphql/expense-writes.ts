@@ -188,3 +188,15 @@ export const COPY_EXPENSE = `mutation CopyExpenseEntry(
     }
   }
 }`;
+
+/**
+ * `GetExchangeRate`, verbatim: Concur's rate from `baseCurrency` (the spend
+ * currency) to `quoteCurrency` (the report currency) on `date` (YYYY-MM-DD).
+ * The web app fills a foreign-currency entry's `exchangeRate` from it.
+ */
+export const EXCHANGE_RATE = `query GetExchangeRate($baseCurrency: String!, $quoteCurrency: String!, $date: String!) {
+  exchangeRate(base: $baseCurrency, quote: $quoteCurrency, date: $date) {
+    rate
+    date
+  }
+}`;

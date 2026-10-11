@@ -21,6 +21,7 @@ import {
   COPY_EXPENSE,
   CREATE_EXPENSE,
   DELETE_AVAILABLE_EXPENSES,
+  EXCHANGE_RATE,
   EXPENSE_FORM,
   MOVE_AVAILABLE_EXPENSES,
   NEW_EXPENSE_FORM,
@@ -37,10 +38,20 @@ import {
   compactAvailable,
   compactExpense,
   expenseIdParam,
+  formValue,
   type AvailableData,
   type AvailableExpense,
   type ExpenseData,
 } from './expenses.js';
+import {
+  checkLength,
+  isCustomKey,
+  isSettable,
+  standardSpec,
+  standardWire,
+  whyNotSettable,
+  type StandardSpec,
+} from './expense-fields.js';
 import {
   businessPurposeList,
   chooseField,
@@ -60,9 +71,6 @@ const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 
 const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
-/** Custom and org-unit fields: the form-driven ones a caller sets by label. */
-const isCustomKey = (id: string) => /^(custom|orgUnit)\d+$/.test(id);
-
 /** The most available-expense pages a preview or re-read walks (100 rows each). */
 const MAX_AVAILABLE_PAGES = 10;
 
@@ -77,8 +85,21 @@ const customFieldsParam = z
   .record(z.string(), z.string())
   .optional()
   .describe(
-    'Other expense-form fields by their LABEL as Concur shows it (or field id, e.g. "custom3"), e.g. {"Project": "Apollo"}. ' +
-      'A list-valued field takes the item text or code and is resolved to its list item; a checkbox takes "true"/"false".',
+    'Other expense-form fields by their LABEL as Concur shows it (or field id, e.g. "custom3", "ticketNumber"), e.g. ' +
+      '{"Project": "Apollo", "Ticket Number": "TKT-0001", "From Location": "Boston"}. Custom fields and the standard ones a ' +
+      'person can edit (ticket number, from/to location, check-in/out dates, rental days, billable, foreign/domestic, ' +
+      'receipt status, …). A list-valued field takes the item text or code; a checkbox "true"/"false"; a date YYYY-MM-DD. ' +
+      'Text longer than the form allows is refused. Fields with a named argument (vendor, comment, …) use that argument.',
+  );
+
+const exchangeRateParam = z
+  .number()
+  .positive()
+  .finite()
+  .optional()
+  .describe(
+    'Only for a `currency` other than the report currency: the rate to convert it (1 unit = this many report-currency ' +
+      "units). Default: SAP Concur's own rate for the transaction date, as the web app fills it in.",
   );
 
 const availableIdParam = z
@@ -196,15 +217,49 @@ function customValues(fields: readonly FormField[]): Values {
   return out;
 }
 
-/** A custom / org-unit field a person may edit — what `fields` can set. */
-const isSettable = (f: FormField) => isCustomKey(f.id) && isEditable(f);
+/** A standard field's value, keyed by its wire name (e.g. `fromLocation` travels as `startLocation`). */
+function standardValue(f: FormField, spec: StandardSpec, wire: unknown, display: unknown): Value {
+  return scalar(spec.wire, labelOf(f), wire, display);
+}
+
+/** A settable standard field's current (or default) value in its wire shape — an empty one as the web app sends it. */
+function currentStandard(f: FormField, spec: StandardSpec): Value {
+  const picked = pickedOf(f);
+  const display = picked?.display ?? null;
+  if (!picked) {
+    const empty = { text: '', listItem: '', date: null, integer: null, boolean: false, taxLocation: 'HOME' }[spec.kind];
+    return standardValue(f, spec, empty, null);
+  }
+  if (spec.kind === 'listItem') return standardValue(f, spec, picked.sent, display);
+  try {
+    const wire = spec.kind === 'text' ? picked.sent : standardWire(f, spec.kind, picked.sent);
+    return standardValue(f, spec, wire, spec.kind === 'text' ? display : wire);
+  } catch {
+    // A current value the caller could not have typed: compare it as text.
+    return standardValue(f, spec, picked.sent, display);
+  }
+}
+
+/** Every settable standard field on the form with its current value, keyed by wire name. */
+function standardValues(fields: readonly FormField[], { onlySet = false } = {}): Values {
+  const out: Values = new Map();
+  for (const f of fields) {
+    const spec = isSettable(f) ? standardSpec(f) : undefined;
+    if (!spec || (onlySet && !pickedOf(f))) continue;
+    out.set(spec.wire, currentStandard(f, spec));
+  }
+  return out;
+}
+
+/** The key a form field's value travels under. */
+const keyOf = (f: FormField) => standardSpec(f)?.wire ?? f.id;
 
 /**
  * Apply `fields` by label, top list level first, so a lower connected level
  * searches under its parent's item. Same-label twins are told apart by
  * chooseField. Answers the values plus the field id each requested name hit.
  */
-async function overlayCustom(
+async function overlayFields(
   client: ConcurClient,
   form: readonly FormField[],
   base: Values,
@@ -222,29 +277,34 @@ async function overlayCustom(
     const field = choice?.field;
     if (!field) {
       throw new McpToolError(`This expense form has no field "${name}".`, {
-        hint: settable.length > 0 ? `Settable fields: ${settable.join('; ')}.` : 'This expense type has no custom fields.',
+        hint: settable.length > 0 ? `Settable fields: ${settable.join('; ')}.` : 'This expense type has no settable fields.',
       });
     }
     if (!isSettable(field)) {
       throw new McpToolError(`The "${labelOf(field)}" field cannot be set through \`fields\`.`, {
-        hint:
-          'Use the named arguments (date, amount, vendor, …) for standard fields' +
-          (settable.length > 0 ? `; settable custom fields: ${settable.join('; ')}.` : '.'),
+        hint: whyNotSettable(field) + (settable.length > 0 ? ` Settable fields: ${settable.join('; ')}.` : ''),
       });
     }
     // A lower connected-list level is re-resolved under the parent the overlays choose.
     const reuse = choice.picked && (field.list?.level ?? 1) <= 1;
     targets.push({ field, text, ...(reuse ? { picked: choice.picked } : {}) });
-    chosen.set(name, field.id);
+    chosen.set(name, keyOf(field));
   }
   const level = (f: FormField) => f.list?.level ?? 0;
   for (const { field, text, picked: early } of targets.sort((a, b) => level(a.field) - level(b.field))) {
-    const picked =
-      early ??
-      (isListField(field)
-        ? await resolveListValue(client, field, text, parentItemOf(form, field, (f) => out.get(f.id)?.item))
-        : { sent: text, display: text });
-    out.set(field.id, customValue(field, picked));
+    const spec = isCustomKey(field.id) ? undefined : standardSpec(field);
+    const resolve = () => resolveListValue(client, field, text, parentItemOf(form, field, (f) => out.get(keyOf(f))?.item));
+    if (spec?.kind === 'listItem') {
+      const picked = early ?? (await resolve());
+      out.set(spec.wire, standardValue(field, spec, picked.sent, picked.display));
+    } else if (spec) {
+      const wire = standardWire(field, spec.kind, text);
+      out.set(spec.wire, standardValue(field, spec, wire, wire));
+    } else {
+      if (!isListField(field) && field.control !== 'CHECKBOX') checkLength(field, text);
+      const picked = early ?? (isListField(field) ? await resolve() : { sent: text, display: text });
+      out.set(field.id, customValue(field, picked));
+    }
   }
   return { values: out, chosen };
 }
@@ -260,12 +320,75 @@ function withBusinessPurpose(form: readonly FormField[], fields: Record<string, 
   return { requested: { [dropdown.id]: businessPurpose!, ...fields }, routed: true };
 }
 
-/** REQUIRED fields a person can edit that this write leaves empty (read-only / computed ones skipped by accessMode). */
+/**
+ * REQUIRED fields a person can edit that this write leaves empty (read-only /
+ * computed ones skipped by accessMode): those it sends empty, and settable
+ * standard fields it does not send at all.
+ */
 function missingRequiredOf(form: readonly FormField[], values: Values) {
   const isEmpty = (v: Value | undefined) => !v || v.display === null || v.display === '';
+  const covered = (f: FormField) => values.has(keyOf(f)) || (isSettable(f) && standardSpec(f) !== undefined);
   return form
-    .filter((f) => f.isRequired && isEditable(f) && values.has(f.id) && isEmpty(values.get(f.id)))
+    .filter((f) => f.isRequired && isEditable(f) && covered(f) && isEmpty(values.get(keyOf(f))))
     .map((f) => ({ label: labelOf(f), field: f.id }));
+}
+
+/** The form field a named text argument fills, for its length limit. */
+const formFieldOf = (form: readonly FormField[], ...ids: string[]) => form.find((f) => ids.includes(f.id));
+
+/** Refuse named text arguments longer than their form fields allow. */
+function checkNamedLengths(form: readonly FormField[], args: { vendor?: string; comment?: string }, businessPurpose: string | undefined) {
+  if (businessPurpose !== undefined) checkLength(formFieldOf(form, 'businessPurpose'), businessPurpose, 'Business Purpose');
+  if (args.vendor !== undefined) checkLength(formFieldOf(form, 'vendorName'), args.vendor, 'Vendor');
+  if (args.comment !== undefined) checkLength(formFieldOf(form, 'comment'), args.comment, 'Comment');
+}
+
+const PASS_RATE = 'Pass `exchangeRate` (1 unit of the expense currency in report currency), e.g. from the receipt or your card statement.';
+
+/** Concur's rate from `from` to `to` on `date` — the web app's GetExchangeRate lookup. */
+async function conversionRate(client: ConcurClient, from: string, to: string, date: string): Promise<number> {
+  let rate: number | null | undefined;
+  try {
+    const data = await client.spend<{ exchangeRate: { rate?: number | null } | null }>(EXCHANGE_RATE, {
+      baseCurrency: from,
+      quoteCurrency: to,
+      date,
+    });
+    rate = data.exchangeRate?.rate;
+  } catch (err) {
+    throw new McpToolError(`Could not get the ${from} → ${to} exchange rate from SAP Concur: ${(err as Error).message}`, { hint: PASS_RATE });
+  }
+  if (typeof rate !== 'number' || !(rate > 0)) {
+    throw new McpToolError(`SAP Concur has no ${from} → ${to} exchange rate for ${date}.`, { hint: PASS_RATE });
+  }
+  return rate;
+}
+
+/** The form's exchange-rate direction (the web app keeps the field's own; MULTIPLY unless it says DIVIDE). */
+function rateOperation(form: readonly FormField[]): 'MULTIPLY' | 'DIVIDE' {
+  const current = formValue(formFieldOf(form, 'exchangeRate')?.value) as { operation?: string } | undefined;
+  return current?.operation === 'DIVIDE' ? 'DIVIDE' : 'MULTIPLY';
+}
+
+/** An `exchangeRate` value: a MULTIPLY rate as the web app stores it for the form's direction. */
+function rateValue(form: readonly FormField[], multiply: number): Value {
+  const operation = rateOperation(form);
+  const value = operation === 'DIVIDE' ? 1 / multiply : multiply;
+  return scalar('exchangeRate', 'Exchange Rate', { operation, value }, `${value} (${operation})`);
+}
+
+/** The expense's exchange rate now, in the wire shape (`{operation, value}`). */
+function currentRate(form: readonly FormField[]): Value {
+  const current = formValue(formFieldOf(form, 'exchangeRate')?.value) as { operation?: string; value?: number } | undefined;
+  if (typeof current?.value !== 'number') return scalar('exchangeRate', 'Exchange Rate', null, null);
+  const operation = current.operation ?? 'MULTIPLY';
+  return scalar('exchangeRate', 'Exchange Rate', { operation, value: current.value }, `${current.value} (${operation})`);
+}
+
+function refuseSameCurrencyRate(reportCurrency: string | null | undefined): never {
+  throw new McpToolError(`\`exchangeRate\` only applies when \`currency\` differs from the report currency (${reportCurrency}).`, {
+    hint: 'Leave it out: a report-currency expense has a rate of 1.',
+  });
 }
 
 const shown = (values: Iterable<Value>) => [...values].map((v) => ({ label: v.label, field: v.key, value: v.display }));
@@ -393,9 +516,11 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         'Add an expense to an unsubmitted SAP Concur report. The expense form is tenant- and type-specific: pick ' +
         'the expense type by id or name (concur_list_expense_types), give the date and amount (currency defaults ' +
         "to the report's), and optionally payment type, vendor, business purpose, location, comment, the personal " +
-        'flag, and other form fields by label (list fields are resolved to their list item). The preview shows every ' +
-        'value that will be sent and any required field still empty. Concur saves an expense with missing required ' +
-        'fields but attaches exceptions — the answer reports them rather than failing. ' +
+        'flag, and any other editable form field by label — custom fields and standard ones such as Ticket Number or ' +
+        'From/To Location (list fields are resolved to their list item; text longer than the form allows is refused). ' +
+        "A currency other than the report's gets SAP Concur's exchange rate for the date unless you pass `exchangeRate`. " +
+        'The preview shows every value that will be sent and any required field still empty. Concur saves an expense ' +
+        'with missing required fields but attaches exceptions — the answer reports them rather than failing. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Create a Concur expense', readOnly: false, destructive: false, openWorld: true }),
       inputSchema: z.object({
@@ -404,6 +529,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         date: IsoDate.describe('Transaction date, YYYY-MM-DD.'),
         amount: z.number().finite().describe('Amount in `currency` (the spend currency).'),
         currency: currencyParam.optional().describe("ISO currency code (default: the report's currency)."),
+        exchangeRate: exchangeRateParam,
         ...commonExpenseArgs,
         confirmToken: confirmTokenParam,
       }),
@@ -462,8 +588,16 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
       const currency = args.currency ?? details.currencyCode ?? undefined;
       if (!currency) throw new McpToolError('Pass `currency`: the report has no currency to default to.');
       const sameCurrency = !details.currencyCode || currency === details.currencyCode;
+      if (sameCurrency && args.exchangeRate !== undefined) refuseSameCurrencyRate(details.currencyCode);
       const bp = withBusinessPurpose(form, args.fields, args.businessPurpose);
-      const { values: custom } = await overlayCustom(client, form, customValues(form), bp.requested);
+      checkNamedLengths(form, args, bp.routed ? undefined : args.businessPurpose);
+      const base: Values = new Map([...customValues(form), ...standardValues(form, { onlySet: true })]);
+      const { values: custom } = await overlayFields(client, form, base, bp.requested);
+      // A foreign-currency entry carries the rate the web app would fill in: Concur's own for the date.
+      const multiply = sameCurrency
+        ? undefined
+        : (args.exchangeRate ?? (await conversionRate(client, currency, details.currencyCode!, args.date)));
+      const rate = multiply === undefined ? undefined : rateValue(form, multiply);
 
       // The named values, in the shape the web app's captured create sends them.
       const named: Value[] = [
@@ -475,7 +609,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         scalar('locationId', 'Location', args.locationId ?? null),
         scalar('paymentTypeId', 'Payment Type', payment.id, payment.name),
         scalar('transactionAmount', 'Amount', { value: args.amount, currencyCode: currency }, `${args.amount} ${currency}`),
-        ...(sameCurrency ? [scalar('exchangeRate', 'Exchange Rate', { operation: 'MULTIPLY', value: 1 }, '1')] : []),
+        rate ?? scalar('exchangeRate', 'Exchange Rate', { operation: 'MULTIPLY', value: 1 }, '1'),
         scalar('taxRateLocation', 'Tax Rate Location', 'HOME'),
         scalar('receiptTypeId', 'Receipt Type', ''),
         scalar('isExpensePartOfTravelAllowance', 'Part of Travel Allowance', false),
@@ -484,6 +618,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         scalar('receiptImageId', 'Receipt Image', null),
       ];
       const all: Values = new Map([...named.map((v) => [v.key, v] as const), ...custom]);
+      const namedEmpty = new Set(named.filter((v) => v.display === null || v.display === ''));
       const fields = Object.fromEntries([...all.values()].map((v) => [v.key, v.wire]));
       const missingRequired = missingRequiredOf(form, all);
 
@@ -506,10 +641,12 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         target: reportId,
         payload: variables,
         preview: {
-          fields: shown([...named.filter((v) => v.display !== null && v.display !== ''), ...custom.values()]),
+          fields: shown([...all.values()].filter((v) => !namedEmpty.has(v))),
           ...(sameCurrency
             ? {}
-            : { exchangeRate: `${currency} differs from the report currency ${details.currencyCode}; Concur applies the exchange rate.` }),
+            : {
+                exchangeRate: `1 ${currency} = ${multiply} ${details.currencyCode} (${args.exchangeRate !== undefined ? 'given' : `Concur’s rate for ${args.date}`})`,
+              }),
           ...(missingRequired.length > 0
             ? {
                 missingRequired,
@@ -545,9 +682,10 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
     'concur_update_expense',
     {
       description:
-        'Change an expense on an unsubmitted SAP Concur report — date, amount/currency, payment type, vendor, ' +
-        'business purpose, location, comment, the personal flag, or other form fields by label. Sends only the ' +
-        'fields that actually change (the preview shows each from → to). To change the expense TYPE, delete it and ' +
+        'Change an expense on an unsubmitted SAP Concur report — date, amount/currency/exchange rate, payment type, ' +
+        'vendor, business purpose, location, comment, the personal flag, or any other editable form field by label ' +
+        '(e.g. a required Ticket Number). A new foreign currency or date re-fetches SAP Concur’s exchange rate, as the ' +
+        'web app does. Sends only the fields that actually change (the preview shows each from → to). To change the expense TYPE, delete it and ' +
         'create a new one. Answers with the expense as Concur shows it afterwards, including any exceptions. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Update a Concur expense', readOnly: false, destructive: false, openWorld: true }),
@@ -557,6 +695,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         date: IsoDate.optional().describe('New transaction date, YYYY-MM-DD.'),
         amount: z.number().finite().optional().describe('New amount (in `currency`, or the current one).'),
         currency: currencyParam.optional().describe('New ISO currency code.'),
+        exchangeRate: exchangeRateParam,
         ...commonExpenseArgs,
         confirmToken: confirmTokenParam,
       }),
@@ -610,7 +749,9 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
           scalar('isPersonalExpense', 'Personal', entry.isPersonalExpense ?? false),
           scalar('businessPurpose', 'Business Purpose', formScalar('businessPurpose') ?? null),
           scalar('comment', 'Comment', formScalar('comment') ?? null),
+          currentRate(form.fields),
           ...customValues(form.fields).values(),
+          ...standardValues(form.fields).values(),
         ].map((v) => [v.key, v] as const),
       );
 
@@ -618,6 +759,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
       if (args.date !== undefined) wanted.push(scalar('transactionDate', 'Transaction Date', args.date));
       if (args.vendor !== undefined) wanted.push(scalar('vendorName', 'Vendor', args.vendor));
       const bp = withBusinessPurpose(form.fields, args.fields, args.businessPurpose);
+      checkNamedLengths(form.fields, args, bp.routed ? undefined : args.businessPurpose);
       if (args.businessPurpose !== undefined && !bp.routed) {
         wanted.push(scalar('businessPurpose', 'Business Purpose', args.businessPurpose));
       }
@@ -632,11 +774,26 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         }
         wanted.push(scalar('transactionAmount', 'Amount', { value, currencyCode }, `${value} ${currencyCode}`));
       }
+      // The rate follows the web app: re-fetched when the currency or date of a
+      // foreign-currency expense changes, reset to 1 back in the report currency.
+      const reportCurrency = report.reportDetails.currencyCode;
+      const nextCurrency = args.currency ?? amount?.currencyCode ?? reportCurrency;
+      const foreign = Boolean(reportCurrency && nextCurrency && nextCurrency !== reportCurrency);
+      if (args.exchangeRate !== undefined && !foreign) refuseSameCurrencyRate(reportCurrency);
+      if (foreign && (args.exchangeRate !== undefined || args.currency !== undefined || args.date !== undefined)) {
+        const date = args.date ?? entry.transactionDate;
+        if (args.exchangeRate === undefined && !date) {
+          throw new McpToolError('The expense has no transaction date to look up an exchange rate for.', { hint: PASS_RATE });
+        }
+        wanted.push(rateValue(form.fields, args.exchangeRate ?? (await conversionRate(client, nextCurrency!, reportCurrency!, date!))));
+      } else if (reportCurrency && args.currency === reportCurrency && args.currency !== amount?.currencyCode) {
+        wanted.push(scalar('exchangeRate', 'Exchange Rate', { operation: 'MULTIPLY', value: 1 }, '1 (MULTIPLY)'));
+      }
       if (args.paymentType !== undefined) {
         const p = resolvePaymentType(await paymentTypes(client, userId), args.paymentType);
         wanted.push(scalar('paymentTypeId', 'Payment Type', p.id, p.name));
       }
-      const custom = await overlayCustom(client, form.fields, customValues(form.fields), bp.requested);
+      const custom = await overlayFields(client, form.fields, before, bp.requested);
       for (const id of new Set(custom.chosen.values())) wanted.push(custom.values.get(id)!);
 
       // Every key `wanted` can hold is seeded in `before`.
