@@ -33,7 +33,7 @@ const BIN = join(ROOT, 'dist', 'index.js');
  * branch adds a tool (PRs are CI-tested merged with main). Raise it as tool
  * registrars land; the manifest roster test owns the exact list.
  */
-const MIN_TOOLS = 37;
+const MIN_TOOLS = 39;
 
 beforeAll(() => {
   if (!existsSync(BUNDLE) || !existsSync(BIN)) {

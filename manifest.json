@@ -169,6 +169,14 @@
       "description": "Permanently delete available expenses not on any report (confirmation-gated)"
     },
     {
+      "name": "concur_search_attendees",
+      "description": "Search the attendee directory (colleagues, saved guests) by name or email"
+    },
+    {
+      "name": "concur_set_attendees",
+      "description": "Replace an expense's attendee list, splitting the amount evenly (confirmation-gated)"
+    },
+    {
       "name": "concur_list_available_receipts",
       "description": "List receipt images in your receipt store that are not attached to an expense"
     },

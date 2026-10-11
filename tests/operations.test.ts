@@ -7,6 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { ConcurClient } from '../src/client.js';
 import { DENIED_MUTATIONS } from '../src/graphql-guard.js';
 import { operationIndex } from '../src/operations.js';
+import { registerAttendeeTools } from '../src/tools/attendees.js';
 import { registerExpenseWriteTools } from '../src/tools/expense-writes.js';
 import { registerExpenseTools } from '../src/tools/expenses.js';
 import { registerGraphqlTools } from '../src/tools/graphql.js';
@@ -82,6 +83,7 @@ describe('operation index', () => {
       registerExpenseTools,
       registerReportWriteTools,
       registerExpenseWriteTools,
+      registerAttendeeTools,
       registerReceiptTools,
       registerTravelTools,
       registerGraphqlTools,

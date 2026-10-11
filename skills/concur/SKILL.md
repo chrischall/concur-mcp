@@ -58,6 +58,10 @@ or sign back in to their Concur tab — there is nothing to fix on this side.
 4. **Before creating an expense** resolve its inputs: `concur_list_expense_types`
    (per report — the policy decides), `concur_list_payment_types`,
    `concur_search_locations`, `concur_list_currencies`.
+5. **Attendees** (group meals and the like): `concur_search_attendees` shows who
+   a name or email resolves to; `concur_set_attendees` takes emails (preferred)
+   or names, each of which must match exactly one person, and splits the
+   expense amount evenly.
 
 Most read tools take `view`: `compact` (default) is enough to browse and decide;
 ask for `full` only when you need a field compact omits, and `raw` only to debug.
@@ -82,6 +86,7 @@ Be precise about what cannot be undone:
 | `concur_add_report_comment` | Permanent, visible to approvers. |
 | `concur_delete_receipt` | Permanent; only unattached receipts (detach first). |
 | `concur_send_itinerary` | Sends real email to the recipients. |
+| `concur_set_attendees` | **Replaces** the expense's whole attendee list (you are added first unless `includeMe: false`); the previous list cannot be read back. |
 
 Reversible: `concur_create_report` / `concur_update_report`,
 `concur_create_expense` / `concur_update_expense` / `concur_copy_expense`,

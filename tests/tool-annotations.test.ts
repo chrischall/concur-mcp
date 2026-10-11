@@ -42,6 +42,7 @@ const DESTRUCTIVE = [
   'concur_graphql_mutation', // arbitrary — cannot know it is reversible
   'concur_move_available_expenses_to_report', // no move-back operation
   'concur_send_itinerary', // real email to third parties
+  'concur_set_attendees', // replaces the attendee list; no tool reads the old list back (or clears it)
   'concur_submit_report', // reaches the approver
   'concur_upload_receipt', // `append: true` is the same irreversible append
 ].sort();
@@ -51,7 +52,7 @@ const LOCAL_ONLY = ['concur_list_operations'];
 
 describe('tool annotations', () => {
   it('covers the whole surface (a meta-test that silently covers half is worse than none)', async () => {
-    expect(Object.keys(await annotations()).length).toBeGreaterThanOrEqual(37);
+    expect(Object.keys(await annotations()).length).toBeGreaterThanOrEqual(39);
   });
 
   it('sets an explicit boolean readOnlyHint on every tool', async () => {

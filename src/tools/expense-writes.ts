@@ -322,7 +322,7 @@ async function readReport(client: ConcurClient, userId: string, reportId: string
   return client.spend<ReportPageData>(GET_REPORT, { userId, reportId, contextRole: CONTEXT_ROLE }, REPORT_ESSENTIAL);
 }
 
-async function readExpense(client: ConcurClient, userId: string, reportId: string, expenseId: string) {
+export async function readExpense(client: ConcurClient, userId: string, reportId: string, expenseId: string) {
   return client.spend<ExpenseData>(GET_EXPENSE, {
     expenseId,
     reportId,
