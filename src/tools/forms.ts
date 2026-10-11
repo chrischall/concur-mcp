@@ -24,6 +24,7 @@ export interface FormField {
   control?: string | null;
   accessMode?: string | null;
   isRequired?: boolean | null;
+  maximumLength?: number | null;
   value?: Rec | null;
   defaultValue?: { value?: string | null; code?: string | null; listItemId?: string | null } | null;
   options?: Array<{ id?: string | null; code?: string | null; value?: string | null }> | null;

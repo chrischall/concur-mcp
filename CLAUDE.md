@@ -78,6 +78,12 @@ npm run test:coverage
   `accessMode` values are not in docs/api: only RO/READ_ONLY/HD/HIDDEN count as
   read-only. Previews list `missingRequired: [{label, field}]` (required,
   editable, sent empty) without blocking.
+- `src/tools/expense-fields.ts` — which STANDARD expense-form fields `fields`
+  may set and their wire key/shape, read off the bundle's save transforms
+  (`outgoingTransforms`; docs/CONCUR-API.md has the table). Add a field only
+  with its serializer path in hand; everything else is refused with a reason.
+  Text is checked against the form's `maximumLength` (custom fields cap at 48)
+  — Concur answers a too-long value with a bare HTTP 400.
 - `src/graphql-guard.ts` — read-only check and the mutation deny-list for the
   escape hatches; one test per deny-list entry.
 - `src/receipt-files.ts` — upload confinement (`CONCUR_UPLOAD_ROOTS`) and

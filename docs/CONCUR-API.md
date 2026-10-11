@@ -158,15 +158,63 @@ attaches exceptions ("missing required information") — report it, don't fail.
 Use `isTrexEnabled: false` to skip the heavy response fragments (verify).
 concur-mcp drops those `@include(if: $isTrexEnabled)` blocks from its trimmed
 texts entirely and re-reads with `GetExistingExpenseEntry` instead.
-A selected list-valued custom field is sent as `{listItemId: <item id>, value: <item text>}`
-— inferred from the bundle (the form state keeps `{listItemId, value}` pairs), NOT
-yet live-captured; an empty one is `{listItemId: null, value: null}` (captured).
+A selected list-valued custom field is sent by concur-mcp as `{listItemId: <item id>, value: <item text>}`;
+the bundle's own transform sends `{listItemId: <id>, value: <id>}` (see below) — NOT yet
+live-captured; an empty one is `{listItemId: null, value: null}` (captured).
 
 ### Update expense — `UpdateExistingExpenseEntry`
 Sends ONLY changed fields: `fields: { transactionAmount: {value: 2.34, currencyCode: "USD"} }`
 plus `{userId, contextRole, reportId, expenseId, expenseTypeId: "", policyId,
 expenseListDetailFormId, shouldCopyDownFields: false, updateRecentExpenseType: false,
 isTrexEnabled, taxFields: null, showAttendeeField: false}` → `data.updateExpense`.
+
+### How the web app serializes expense fields — from the bundle (2026-10-11)
+
+The expense form saves through `outgoingTransforms: [<form lib>.gZ, <expense serializer>(role, reportCurrency)]`
+(expense bundle). Before either runs, the form library normalizes each value by
+`control`/`dataType`: EDIT+AMOUNT → number; a PICK_LIST / LIST_EDIT (or a LIST /
+CONNECTED_LIST edit) `{id, value}` → its `id`; a checkbox → boolean; empty → `""`.
+Then the serializer sends ONLY form ids on its allow-list, renaming and converting:
+
+| form field id | wire key in `fields` | value |
+|---|---|---|
+| `ticketNumber`, `merchantTaxId`, `invoiceId`, `governmentInvoiceId` | same | the text |
+| `fromLocation` / `toLocation` | `startLocation` / `endLocation` | the text (free text, not a location id) |
+| `budgetAccrualDate`, `hotelCheckinDate`, `hotelCheckoutDate` | same | `YYYY-MM-DD` or `null` |
+| `carRentalDays` | same | `Number(…)`, `""` → `null` |
+| `isExpenseBillable`, `isExcludedFromCashAdvanceByUser` | same | `Boolean(…)` |
+| `isPartOfTravelAllowance` | `isExpensePartOfTravelAllowance` | `Boolean(…)` |
+| `foreignOrDomestic` | `taxRateLocation` | `"FOREIGN"` / `"OUT_OF_PROVINCE"`, anything else `"HOME"` |
+| `aftCode`, `airlineSvcCode`, `receiptType`, `fuelTypeListItemId` | `airlineFeeTypeCode`, `airlineServiceClassCode`, `receiptTypeId`, `fuelTypeListItemId` | the picked item's id |
+| `exchangeRate` | same | `{operation, value}` |
+| `location`, `paymentType`, `expenseType`, `ctryCode` | `locationId`, `paymentTypeId`, `expenseTypeId`, `countryCode` | id / code |
+
+- `adjustedAmount`, `isExpenseRejected`, `isPaperReceiptReceived` are dropped unless the role is
+  PROCESSOR or MANAGER — never sent for your own expense.
+- Ids NOT on the allow-list (`vatTaxTotal`, `hasVat`, `postedAmount`, `approvedAmount`, the
+  tax/reclaim totals, …) are never sent: Concur computes them.
+- `companyTaxId` / `goodsOrServicesCode` / `placeOfSupply` go inside a `compliance` object;
+  tax-authority amounts, mileage, attendees and allocations have their own paths. concur-mcp
+  refuses those through `fields` rather than guess.
+- Custom fields (`/custom[0-9]+|orgUnit[0-9]+|atnMapCustom[0-9]+/i`) go through `gZ`: a LIST
+  custom field becomes `{listItemId: <id>, value: <id>}` (both the item id), a CONNECTED_LIST
+  one `{value: <id>}`, other values `{value: String(v)}`; empty → `{listItemId: null, value: null}`,
+  an empty visible checkbox `{value: "false"}`. (concur-mcp still sends a selected list item as
+  `{listItemId: <id>, value: <item text>}` — not yet compared live.)
+
+**Text length.** A text input's `maxLength` is the field's `maximumLength` (for custom /
+org-unit fields capped at 48); TEXT_AREA and from/to location fields are validated against
+`maximumLength`. A create whose 82-character business purpose exceeded the form's limit came
+back as a bare HTTP 400 (2026-10-11), so concur-mcp checks `maximumLength` before sending.
+
+**Exchange rate.** For a transaction currency other than the report's, the web app calls
+`GetExchangeRate(baseCurrency: <transaction currency>, quoteCurrency: <report currency>,
+date: <transaction date>)` (`docs/api/spend-reads.graphql`) and stores
+`exchangeRate: {operation: <the field's current operation>, value: rate}` (`1/rate` when the
+operation is DIVIDE); back in the report currency it resets to `{operation: "MULTIPLY", value: 1}`.
+It re-fetches when the currency or the date changes. A create sent with no rate for GBP on a USD
+report failed with an opaque GraphQL error (2026-10-11); existing GBP entries read back
+`{value: 1.3316393774, operation: "MULTIPLY"}`.
 
 ### Delete expenses — `DeleteExpenseEntries`
 `{userId, contextRole, reportId, expenseIds: [..]}` →
