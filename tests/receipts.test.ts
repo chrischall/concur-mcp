@@ -130,7 +130,7 @@ function expectUnverifiedSuccess(result: unknown, text: string) {
   return out;
 }
 
-const bytes = (b: Uint8Array, type = 'image/png') => new Response(b, { status: 200, headers: { 'content-type': type } });
+const bytes = (b: Uint8Array<ArrayBuffer>, type = 'image/png') => new Response(b, { status: 200, headers: { 'content-type': type } });
 
 // ── annotations ───────────────────────────────────────────────────────────
 
