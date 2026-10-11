@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/chrischall/concur-mcp/compare/v0.1.1...v0.2.0) (2026-10-11)
+
+
+### Features
+
+* **attendees:** search attendees and set them on an expense ([#11](https://github.com/chrischall/concur-mcp/issues/11)) ([c12680e](https://github.com/chrischall/concur-mcp/commit/c12680eec27d67bef68e854f1567c20872b9e78c))
+* **expenses:** set standard form fields and foreign-currency amounts ([#13](https://github.com/chrischall/concur-mcp/issues/13)) ([528c767](https://github.com/chrischall/concur-mcp/commit/528c7675790ddab0094bcf379b03b756d901948f))
+
+
+### Bug Fixes
+
+* **expenses:** check vendor length on every vendor field id ([#16](https://github.com/chrischall/concur-mcp/issues/16)) ([53ecaa6](https://github.com/chrischall/concur-mcp/commit/53ecaa6595d97575a3c0bd6f5ce42643638ad60d))
+
 ## [0.1.1](https://github.com/chrischall/concur-mcp/compare/v0.1.0...v0.1.1) (2026-10-09)
 
 
