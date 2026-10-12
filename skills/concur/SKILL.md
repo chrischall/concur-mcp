@@ -87,6 +87,7 @@ Be precise about what cannot be undone:
 | `concur_move_available_expenses_to_report` | One-way — Concur has no move-back; undoing it means deleting the expense. |
 | `concur_add_report_comment` | Permanent, visible to approvers. |
 | `concur_delete_receipt` | Permanent; only unattached receipts (detach first). |
+| `concur_add_missing_receipt_declaration` | The employee **certifies** each receipt is missing (the preview shows the policy's declaration text verbatim); no tool removes a declaration — attaching a receipt replaces it. |
 | `concur_send_itinerary` | Sends real email to the recipients. |
 | `concur_set_attendees` | **Replaces** the expense's whole attendee list (you are added first unless `includeMe: false`); the previous list cannot be read back. |
 
@@ -111,6 +112,10 @@ not return this time while the rest of the answer is good.
   `~/Downloads`, `~/Documents`, `~/Desktop`). It lands in the receipt store;
   then `concur_attach_receipt` puts it on an expense with no receipt, or
   `concur_append_receipt` adds it as an extra page.
+- No receipt at all? `concur_add_missing_receipt_declaration` creates Concur's
+  Missing Receipt Declaration (affidavit) for expenses with no receipt image,
+  when the report's policy allows it. Only call it when the USER says the
+  receipt is missing — confirming is their certification.
 - `concur_get_receipt` downloads an image to `CONCUR_OUTPUT_DIR` (or returns it
   inline when hosted / `CONCUR_INLINE_RECEIPTS=true`).
 

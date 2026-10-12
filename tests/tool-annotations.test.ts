@@ -33,6 +33,7 @@ async function annotations(): Promise<Record<string, Ann | undefined>> {
  * Pinned so a reclassification is a deliberate, reviewed edit.
  */
 const DESTRUCTIVE = [
+  'concur_add_missing_receipt_declaration', // an employee certification; no tool (or UI action) removes it
   'concur_add_report_comment', // permanent, seen by approvers — no delete
   'concur_append_receipt', // no tool removes a single appended page; detach takes the whole receipt
   'concur_delete_available_expenses',
@@ -52,7 +53,7 @@ const LOCAL_ONLY = ['concur_list_operations'];
 
 describe('tool annotations', () => {
   it('covers the whole surface (a meta-test that silently covers half is worse than none)', async () => {
-    expect(Object.keys(await annotations()).length).toBeGreaterThanOrEqual(39);
+    expect(Object.keys(await annotations()).length).toBeGreaterThanOrEqual(40);
   });
 
   it('sets an explicit boolean readOnlyHint on every tool', async () => {
