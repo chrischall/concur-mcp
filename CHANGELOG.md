@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/chrischall/concur-mcp/compare/v0.2.0...v0.3.0) (2026-10-12)
+
+
+### Features
+
+* **receipts:** add a missing receipt declaration for expenses without a receipt ([#18](https://github.com/chrischall/concur-mcp/issues/18)) ([7dc409a](https://github.com/chrischall/concur-mcp/commit/7dc409aa8d37e4cb0a87a46322509902d77535b8))
+
+
+### Bug Fixes
+
+* **receipts:** name an existing declaration instead of calling it a receipt image ([#20](https://github.com/chrischall/concur-mcp/issues/20)) ([c7a00d9](https://github.com/chrischall/concur-mcp/commit/c7a00d9273e675f502fa7cda8bdcc1fe18446c41))
+
 ## [0.2.0](https://github.com/chrischall/concur-mcp/compare/v0.1.1...v0.2.0) (2026-10-11)
 
 
