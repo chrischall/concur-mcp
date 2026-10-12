@@ -82,6 +82,7 @@ export const ENTRY_SUMMARY_FIELDS = `id
   claimedAmount ${MONEY}
   meta {
     canDelete
+    hasAffidavit
     hasAllocation
     hasAttendees
     hasBlockingExceptions

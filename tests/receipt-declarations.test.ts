@@ -198,6 +198,14 @@ describe('concur_add_missing_receipt_declaration', () => {
     expect(t.sent.filter(isMutation)).toEqual([]);
   });
 
+  it('names the declaration when Concur also reports it as a receipt image (as a live declaration does)', async () => {
+    const t = await setup([context([entry(E1, { hasAffidavit: true, hasReceiptImage: true })])]);
+    const result = await t.harness.callTool(TOOL, { reportId: RID, expenseIds: [E1] });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain(`${E1} (already has a missing receipt declaration)`);
+    expect(t.sent.filter(isMutation)).toEqual([]);
+  });
+
   it('refuses when the policy setting could not be read', async () => {
     const t = await setup([context([entry(E1)], { id: 'POL1' })]);
     const result = await t.harness.callTool(TOOL, { reportId: RID, expenseIds: [E1] });

@@ -194,7 +194,7 @@ const summary = {
   postedAmount: usd(36.5),
   approvedAmount: usd(36.5),
   claimedAmount: usd(36.5),
-  meta: { hasReceiptImage: true, hasExceptions: true, canDelete: true, hasComments: false },
+  meta: { hasAffidavit: true, hasReceiptImage: true, hasExceptions: true, canDelete: true, hasComments: false },
 };
 
 const missingFieldsException = {
@@ -292,7 +292,7 @@ describe('concur_get_report', () => {
           approved: '36.5 USD',
           location: 'Toronto, Ontario',
           receiptImageId: 'IMG1',
-          flags: ['hasReceiptImage', 'hasExceptions', 'canDelete'],
+          flags: ['hasAffidavit', 'hasReceiptImage', 'hasExceptions', 'canDelete'],
         },
       ],
       exceptions: [
