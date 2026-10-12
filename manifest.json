@@ -197,6 +197,10 @@
       "description": "Add a stored receipt image as an extra page of an expense's receipt (confirmation-gated)"
     },
     {
+      "name": "concur_add_missing_receipt_declaration",
+      "description": "Declare the receipt missing for expenses without one, certifying it per your company policy (confirmation-gated)"
+    },
+    {
       "name": "concur_detach_receipt",
       "description": "Take the receipt image off an expense (confirmation-gated)"
     },

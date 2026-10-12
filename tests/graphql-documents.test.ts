@@ -7,6 +7,7 @@ import * as lookups from '../src/graphql/lookups.js';
 import * as forms from '../src/graphql/forms.js';
 import * as reportWrites from '../src/graphql/report-writes.js';
 import * as receipts from '../src/graphql/receipts.js';
+import * as receiptDeclarations from '../src/graphql/receipt-declarations.js';
 import * as reports from '../src/graphql/reports.js';
 import * as travel from '../src/graphql/travel.js';
 
@@ -46,7 +47,7 @@ describe('read documents', () => {
 
   it('no tool document selects the unused legacy keys rptKey / rpeKey', () => {
     const all = Object.values({
-      ...reports, ...expenses, ...lookups, ...forms, ...reportWrites, ...receipts, ...expenseWrites, ...travel, ...attendees,
+      ...reports, ...expenses, ...lookups, ...forms, ...reportWrites, ...receipts, ...receiptDeclarations, ...expenseWrites, ...travel, ...attendees,
     });
     for (const doc of all) {
       if (typeof doc !== 'string') continue;
@@ -253,5 +254,39 @@ describe('attendee documents', () => {
     );
     expect(attendees.SAVE_EXPENSE_ATTENDEES).toContain('saveAttendeesLegacy(params: $params)');
     for (const [, doc] of attendeeDocs) expect(doc).not.toMatch(/\.\.\.[A-Za-z]/);
+  });
+});
+
+const declarationDocs = Object.entries(receiptDeclarations) as Array<[string, string]>;
+
+describe('missing receipt declaration documents', () => {
+  it('covers the declaration read and CreateAffidavits', () => {
+    expect(declarationDocs.map(([name]) => name).sort()).toEqual(['CREATE_AFFIDAVITS', 'GET_AFFIDAVIT_CONTEXT']);
+  });
+
+  it.each(declarationDocs)('%s lexes as exactly one operation of the kind its keyword says', (_name, doc) => {
+    const kind = /^\s*(query|mutation)/.exec(doc)![1];
+    expect(graphqlOperationKinds(doc)).toEqual([kind]);
+    expect(isReadOnlyGraphqlDocument(doc)).toBe(kind === 'query');
+  });
+
+  it.each(declarationDocs)('%s has balanced braces and parentheses and declares every variable it uses', (_name, doc) => {
+    const count = (ch: string) => doc.split(ch).length - 1;
+    expect(count('{')).toBe(count('}'));
+    expect(count('(')).toBe(count(')'));
+    const declared = new Set([...doc.matchAll(/\$(\w+)\s*:/g)].map((m) => m[1]));
+    const used = new Set([...doc.matchAll(/\$(\w+)\b(?!\s*:)/g)].map((m) => m[1]));
+    expect([...used].filter((v) => !declared.has(v))).toEqual([]);
+    expect([...declared].filter((v) => !used.has(v))).toEqual([]);
+  });
+
+  it('names the mutation as the bundle does and selects the policy fields from GetReportPageData', () => {
+    expect(receiptDeclarations.CREATE_AFFIDAVITS).toMatch(/^\s*mutation CreateAffidavits\(/);
+    expect(receiptDeclarations.CREATE_AFFIDAVITS).toContain('createAffidavits(');
+    expect(receiptDeclarations.CREATE_AFFIDAVITS).toContain('status { success }');
+    for (const f of ['allowReceiptAffidavits', 'receiptAffidavitExplanation', 'receiptAffidavitAcceptance', 'hasAffidavit', 'hasReceiptImage']) {
+      expect(receiptDeclarations.GET_AFFIDAVIT_CONTEXT).toContain(f);
+    }
+    for (const [, doc] of declarationDocs) expect(doc).not.toMatch(/\.\.\.[A-Za-z]/);
   });
 });

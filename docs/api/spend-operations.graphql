@@ -1781,3 +1781,22 @@ mutation SaveExpenseAttendees(
       }
     }
   }
+
+### CreateAffidavits
+mutation CreateAffidavits(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $expenseIds: [String!]!
+  ) {
+    createAffidavits(
+      userId: $userId
+      contextRole: $contextRole
+      reportId: $reportId
+      expenseIds: $expenseIds
+    ) {
+      status {
+        success
+      }
+    }
+  }

@@ -162,6 +162,7 @@ Most read tools take `view: compact | full | raw` (default `compact`): `compact`
 | `concur_attach_receipt` | Attach a stored image to an expense that has none | yes |
 | `concur_append_receipt` | Add a stored image as an extra page of an expense's receipt | yes |
 | `concur_detach_receipt` | Take the image off an expense | yes |
+| `concur_add_missing_receipt_declaration` | Missing Receipt Declaration (affidavit) for expenses with no receipt — **you certify the receipt is missing**; the preview shows your policy's declaration text. No tool removes one (attaching a receipt replaces it) | yes |
 | `concur_delete_receipt` | Delete an unattached receipt image — **cannot be undone** | yes |
 
 ### Travel

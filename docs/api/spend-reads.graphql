@@ -2318,3 +2318,31 @@ query GetExchangeRate(
       date
     }
   }
+
+### GetMissingReceiptDeclarationLinkData
+query GetMissingReceiptDeclarationLinkData(
+    $userId: String!
+    $contextRole: ContextRoleType!
+    $reportId: String!
+    $expenseId: String!
+  ) {
+    employee(userId: $userId, contextRole: $contextRole) {
+      userId
+      contextRole
+      expenseReport(reportId: $reportId) {
+        reportId
+        reportDetails {
+          id
+          policy {
+            id
+            allowReceiptAffidavits
+          }
+        }
+        entry(expenseId: $expenseId) {
+          id
+          isImageRequired
+          isPaperReceiptRequired
+        }
+      }
+    }
+  }

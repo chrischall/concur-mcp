@@ -283,6 +283,20 @@ one part named `file`; header `concur-correlationid: <uuid>`; optional query
 (UI): png, jpg, jpeg, pdf, tif, tiff. Needs the Node path — the fetchproxy
 bridge only carries string bodies.
 
+### Missing Receipt Declaration (affidavit) — from the bundle, NOT yet exercised
+The web app's "Missing Receipt Declaration" (also "receipt exception" / "no
+receipt") is Concur's *affidavit*. `CreateAffidavits(userId, contextRole,
+reportId, expenseIds)` → `createAffidavits{status{success}}`
+(`docs/api/spend-operations.graphql`). The UI offers it only for expenses with
+no receipt, and only when the report policy's `allowReceiptAffidavits` is true
+(`GetMissingReceiptDeclarationLinkData`, or `GetReportPageData`'s
+`ReportPolicyFragment`); its modal shows the policy's
+`receiptAffidavitExplanation` and `receiptAffidavitAcceptance` text and the
+employee presses accept — that is the certification. Afterwards the entry's
+`meta.hasAffidavit` is true. There is no delete mutation: the UI only replaces
+a declaration by attaching a receipt image. Tool:
+`concur_add_missing_receipt_declaration` (destructive — no inverse).
+
 ## Travel (CDS) — from the bundle
 
 Trip list `loadTripList`, trip detail `loadOverviewTrip`, `loadTripHistory`,

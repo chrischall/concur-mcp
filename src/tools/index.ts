@@ -10,6 +10,7 @@ import { registerExpenseTools } from './expenses.js';
 import { registerGraphqlTools } from './graphql.js';
 import { registerHealthcheckTool } from './healthcheck.js';
 import { registerLookupTools } from './lookups.js';
+import { registerReceiptDeclarationTools } from './receipt-declarations.js';
 import { registerReceiptTools } from './receipts.js';
 import { registerReportWriteTools } from './report-writes.js';
 import { registerReportTools } from './reports.js';
@@ -26,6 +27,7 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
   registerExpenseWriteTools,
   registerAttendeeTools,
   registerReceiptTools,
+  registerReceiptDeclarationTools,
   registerTravelTools,
   registerGraphqlTools,
 ];

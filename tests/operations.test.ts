@@ -13,6 +13,7 @@ import { registerExpenseTools } from '../src/tools/expenses.js';
 import { registerGraphqlTools } from '../src/tools/graphql.js';
 import { registerHealthcheckTool } from '../src/tools/healthcheck.js';
 import { registerLookupTools } from '../src/tools/lookups.js';
+import { registerReceiptDeclarationTools } from '../src/tools/receipt-declarations.js';
 import { registerReceiptTools } from '../src/tools/receipts.js';
 import { registerReportWriteTools } from '../src/tools/report-writes.js';
 import { registerReportTools } from '../src/tools/reports.js';
@@ -75,6 +76,12 @@ describe('operation index', () => {
     for (const op of index) expect(op.purpose).not.toContain('\n');
   });
 
+  it('points the missing receipt declaration operations at their docs and the tool', () => {
+    const op = (name: string) => index.find((o) => o.name === name);
+    expect(op('CreateAffidavits')).toMatchObject({ text: 'docs/api/spend-operations.graphql', tool: 'concur_add_missing_receipt_declaration' });
+    expect(op('GetMissingReceiptDeclarationLinkData')?.text).toBe('docs/api/spend-reads.graphql');
+  });
+
   it('names only tools that are actually registered', async () => {
     const registrars = [
       registerHealthcheckTool,
@@ -85,6 +92,7 @@ describe('operation index', () => {
       registerExpenseWriteTools,
       registerAttendeeTools,
       registerReceiptTools,
+      registerReceiptDeclarationTools,
       registerTravelTools,
       registerGraphqlTools,
     ];
