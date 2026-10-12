@@ -94,8 +94,10 @@ const expenseSummary = (e: Entry) => {
 /** Why an expense cannot be declared (as the web app only offers it without a receipt), or undefined. */
 function ineligibility(entry: Entry | undefined): string | undefined {
   if (!entry) return 'not on this report';
-  if (entry.summary?.meta?.hasReceiptImage === true) return 'already has a receipt image';
+  // Concur attaches a declaration as a receipt image too (hasAffidavit AND
+  // hasReceiptImage, verified live), so name the declaration first.
   if (entry.summary?.meta?.hasAffidavit === true) return 'already has a missing receipt declaration';
+  if (entry.summary?.meta?.hasReceiptImage === true) return 'already has a receipt image';
   return undefined;
 }
 

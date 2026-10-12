@@ -58,6 +58,7 @@ describe('read documents', () => {
 
   it('the shared entry-summary selection is a fragment body, not a document', () => {
     expect(reports.ENTRY_SUMMARY_FIELDS).not.toMatch(/^\s*query/);
+    expect(reports.ENTRY_SUMMARY_FIELDS).toContain('hasAffidavit');
     expect(reports.GET_REPORT).toContain('vendor { id description name }');
     expect(expenses.GET_EXPENSE).toContain('vendor { id description name }');
   });
