@@ -80,8 +80,9 @@ The token lives 60 minutes. The server re-reads the cookies (all together) from 
 | `CONCUR_DC` | `us2` | Your datacenter: the first label of your signed-in tab's host (`us2` for `us2.concursolutions.com`, `eu2`, …). Must match the session token's issuer, or every call fails with an error that says which value to use. |
 | `CONCUR_WS_PORT` | `37149` | The fetchproxy bridge port. The whole fetchproxy fleet and ContextMint Bridge share `37149`; override only for local testing (or when a host injects a per-registration port). |
 | `CONCUR_OUTPUT_DIR` | `~/Downloads/concur-mcp` | Where `concur_get_receipt` saves downloaded receipts (never overwriting an existing file). |
-| `CONCUR_UPLOAD_ROOTS` | cwd, `~/Downloads`, `~/Documents`, `~/Desktop` | The only folders `concur_upload_receipt` will read from (a path-delimiter-separated list; `~` expanded). Hosted (with `MCP_DATA_DIR` set) the default is `$MCP_DATA_DIR/uploads`. |
+| `CONCUR_UPLOAD_ROOTS` | `~/Downloads`, `~/Documents`, `~/Desktop`, plus the cwd when it is a folder inside your home directory (never `/` or home itself — Claude Desktop starts the server in `/`) | The only folders `concur_upload_receipt` will read from (a path-delimiter-separated list; `~` expanded). Hosted (with `MCP_DATA_DIR` set) the default is `$MCP_DATA_DIR/uploads`. |
 | `CONCUR_INLINE_RECEIPTS` | off locally, on when hosted | `true` makes `concur_get_receipt` return the image in the result instead of writing a file. |
+| `MCP_USER_TZ` | the server's zone | Your IANA time zone (e.g. `America/New_York`), used for "today" when `concur_create_report` defaults `reportDate`. Set it when hosted — a hosted server runs in UTC, so an evening report would otherwise be dated tomorrow. |
 | `CONCUR_DEBUG` | off | Log the bridge's role and lifecycle to stderr. |
 | `MCP_CONFIRM_MODE` | `ask-user` | What a write does on a client that cannot show a confirmation prompt — see below. |
 | `MCP_CONFIRM_ELICITATION` | `on` | `off` never shows a confirmation prompt, so every client takes the `MCP_CONFIRM_MODE` path (for clients that declare prompts but never render them). |

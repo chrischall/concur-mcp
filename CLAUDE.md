@@ -104,7 +104,17 @@ npm run test:coverage
   even though recall exists. Append (and upload with `append: true`) is
   destructive: no tool takes one appended page back off.
 - Out of scope, by decision: approvals (`contextRole: MANAGER`), card-account
-  management, and travel booking / hold / confirm / cancel. Don't add them; the
-  mutation escape hatch refuses them.
+  management, and travel booking / hold / confirm / cancel. Don't add tools for
+  them. "Not built" is NOT "refused": `concur_graphql_mutation` refuses only
+  what `DENIED_MUTATIONS` (`src/graphql-guard.ts`) lists — submit, the CDS
+  travel booking/hold/confirm/cancel/search mutations, `processApproval` and
+  `updateWorkItemStatus`. Spend-side `UpdateTimelineWorkflow` (approvals),
+  `ExportReportAsEmail`, and the card-account mutations
+  (`MoveCCTransactionsToReport`, `CreateCBSReportAndMoveCCTransactionsToReport`,
+  `RefreshYodleeTransactions`) are NOT on the list: they pass the escape hatch
+  after its generic confirm gate. Adding one to the deny-list needs its
+  operation text in `docs/api/` first (the field it selects, so an alias
+  cannot bypass it) — never a guessed field name. README "Not built is not
+  the same as refused" is the user-facing statement of this.
 - Tests make no network calls: `tests/helpers.ts` `toolHarness` scripts the
   fetch and fakes the JWT. Never call Concur's live API from tests.

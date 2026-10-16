@@ -19,13 +19,34 @@ const tmp = () => {
   return d;
 };
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
 describe('uploadRoots', () => {
-  it('defaults to the cwd and the home Downloads/Documents/Desktop folders', () => {
+  it('defaults to the cwd and the home Downloads/Documents/Desktop folders when the cwd is inside home', () => {
+    const cwd = join(homedir(), 'projects', 'expenses');
+    vi.spyOn(process, 'cwd').mockReturnValue(cwd);
     expect(uploadRoots({})).toEqual([
-      process.cwd(),
+      cwd,
+      join(homedir(), 'Downloads'),
+      join(homedir(), 'Documents'),
+      join(homedir(), 'Desktop'),
+    ]);
+  });
+
+  // fleet-audit#1186: Claude Desktop starts .mcpb servers with cwd `/`, which
+  // as a root would let an upload read any file on the machine.
+  it.each([
+    ['/ (Claude Desktop / .mcpb)', '/'],
+    ['the home directory itself', homedir()],
+    ['a folder outside home', '/opt/elsewhere'],
+  ])('never uses the cwd as a root when it is %s', (_label, cwd) => {
+    vi.spyOn(process, 'cwd').mockReturnValue(cwd);
+    const roots = uploadRoots({});
+    expect(roots).not.toContain(cwd);
+    expect(roots).not.toContain('/');
+    expect(roots).toEqual([
       join(homedir(), 'Downloads'),
       join(homedir(), 'Documents'),
       join(homedir(), 'Desktop'),
@@ -37,7 +58,8 @@ describe('uploadRoots', () => {
   });
 
   it('a blank CONCUR_UPLOAD_ROOTS counts as unset — it can never disable confinement', () => {
-    expect(uploadRoots({ CONCUR_UPLOAD_ROOTS: ' : ' })).toHaveLength(4);
+    expect(uploadRoots({ CONCUR_UPLOAD_ROOTS: ' : ' })).toEqual(uploadRoots({}));
+    expect(uploadRoots({ CONCUR_UPLOAD_ROOTS: ' : ' }).length).toBeGreaterThanOrEqual(3);
   });
 
   it('hosted (MCP_DATA_DIR set, no override) confines to $MCP_DATA_DIR/uploads only', () => {
@@ -54,6 +76,10 @@ describe('extensionForMime', () => {
     ['image/gif', 'gif'],
     ['image/webp', 'webp'],
     ['application/octet-stream', 'bin'],
+    ['IMAGE/PNG; charset=binary', 'png'],
+    // Since the move onto mcp-utils' extensionForMime (fleet-audit#1301): an
+    // unlisted type is named by its subtype rather than `bin`.
+    ['image/heic', 'heic'],
   ])('%s → %s', (mime, ext) => {
     expect(extensionForMime(mime)).toBe(ext);
   });
