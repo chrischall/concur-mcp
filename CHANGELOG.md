@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/chrischall/concur-mcp/compare/v0.3.0...v0.3.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **deps:** Bump the production-dependencies group with 4 updates ([#23](https://github.com/chrischall/concur-mcp/issues/23)) ([a09ab1b](https://github.com/chrischall/concur-mcp/commit/a09ab1b12cc64c09c505584b9b7632261952c193))
+* **receipts:** keep receipt-upload confinement when the server starts in / ([#25](https://github.com/chrischall/concur-mcp/issues/25)) ([c1199d6](https://github.com/chrischall/concur-mcp/commit/c1199d617ce7d5a35a33ab6acf66193acf301422))
+
 ## [0.3.0](https://github.com/chrischall/concur-mcp/compare/v0.2.0...v0.3.0) (2026-10-12)
 
 
