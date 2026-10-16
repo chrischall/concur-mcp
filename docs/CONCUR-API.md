@@ -266,7 +266,7 @@ Adding a colleague to a Group Meals expense, the UI ran `GetAttendeesMeta` →
 - `CreateNewReportComment(userId, reportId, contextRole, comment)` — exercised live 2026-10-08; the comment shows up in `timelineSummary` (see Reads).
 - `AttachImage / AppendImage / DetachImage (userId, contextRole, reportId, expenseId, imageId?)`
 - `DeleteReceipt(imageId)`
-- `SubmitExpenseReport` — **CDS-namespaced**: `CDS_expense.report.submit(contextType, id, userId, validate, reportSource, approverValidated){status}`. Reaches the approver. NEVER live-tested.
+- `SubmitExpenseReport` — **CDS-namespaced**: `CDS_expense.report.submit(contextType, id, userId, validate, reportSource, approverValidated){status}`. Reaches the approver. NEVER live-tested — including what `validate: true` vs `false` does (concur_submit_report sends `validate: !acknowledgeWarnings` on the web app's pattern; its description says this is unverified and relies on the re-read). Verify on a scratch report and record the result here.
 - `RecallReport(contextRole, reportId, userId)` — NEVER live-tested.
 - `CopyExpenseEntry`, `MoveExpense`, `UpdateReportHeader`, allocations, itemizations.
 - `MoveExpense` moves entries report → report (`fromReportId`/`toReportId`); nothing in the

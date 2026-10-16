@@ -11,9 +11,15 @@
 // user can never open a path on it, so the inline output writes nothing and the
 // tool returns the bytes in the result instead of claiming "saved to <path>".
 
-import { delimiter, join } from 'node:path';
+import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
-import { parseBoolEnv, readEnvVar, resolveOutputDir, writeUniqueFile } from '@chrischall/mcp-utils';
+import {
+  extensionForMime as sharedExtensionForMime,
+  parseBoolEnv,
+  readEnvVar,
+  resolveOutputDir,
+  writeUniqueFile,
+} from '@chrischall/mcp-utils';
 import type { EnvSource } from './config.js';
 
 /**
@@ -41,7 +47,10 @@ export const MAX_INLINE_BYTES = 10 * 1024 * 1024;
  * The folders an upload path must resolve inside:
  * - `CONCUR_UPLOAD_ROOTS` set → exactly those (a path-delimiter list, `~` expanded);
  * - unset, hosted (`MCP_DATA_DIR` set) → only `$MCP_DATA_DIR/uploads`;
- * - unset, locally → the cwd and `~/Downloads`, `~/Documents`, `~/Desktop`.
+ * - unset, locally → `~/Downloads`, `~/Documents`, `~/Desktop`, plus the cwd
+ *   only when it is a folder INSIDE home (Claude Code's project dir). Claude
+ *   Desktop starts .mcpb servers with cwd `/`, and `/` (or home itself, or a
+ *   folder elsewhere) as a root would let an upload read nearly any file.
  * A blank or delimiter-only value counts as unset, so it can never disable confinement.
  */
 export function uploadRoots(env: EnvSource = process.env): string[] {
@@ -53,21 +62,25 @@ export function uploadRoots(env: EnvSource = process.env): string[] {
   const dataDir = readEnvVar('MCP_DATA_DIR', { env });
   if (dataDir) return [join(dataDir, 'uploads')];
   const home = homedir();
-  return [process.cwd(), join(home, 'Downloads'), join(home, 'Documents'), join(home, 'Desktop')];
+  const defaults = [join(home, 'Downloads'), join(home, 'Documents'), join(home, 'Desktop')];
+  const cwd = process.cwd();
+  return isStrictlyInside(cwd, home) ? [cwd, ...defaults] : defaults;
 }
 
-const EXT_BY_MIME: Readonly<Record<string, string>> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/tiff': 'tif',
-  'application/pdf': 'pdf',
-};
+/** True when `dir` is a folder below `parent` (not `parent` itself, not outside it). */
+function isStrictlyInside(dir: string, parent: string): boolean {
+  const rel = relative(resolve(parent), resolve(dir));
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
 
-/** File extension (no dot) for a receipt's MIME type; `bin` when unknown. */
+/**
+ * File extension (no dot) for a receipt's MIME type — mcp-utils'
+ * `extensionForMime` (fleet-audit#1301): known types by table (`image/jpeg` →
+ * `jpg`, `image/tiff` → `tif`), else a plain subtype, else `bin`. Always a safe
+ * extension for `writeUniqueFile`.
+ */
 export function extensionForMime(mime: string): string {
-  return EXT_BY_MIME[mime.toLowerCase()] ?? 'bin';
+  return sharedExtensionForMime(mime);
 }
 
 export interface ReceiptFileToSave {

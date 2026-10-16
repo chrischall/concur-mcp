@@ -1031,10 +1031,22 @@ describe('concur_recall_report', () => {
 
 describe('localIsoDate', () => {
   const tz = process.env.TZ;
+  const userTz = process.env.MCP_USER_TZ;
   afterEach(() => {
     // Assigning undefined would set the STRING "undefined"; unset it instead.
     if (tz === undefined) delete process.env.TZ;
     else process.env.TZ = tz;
+    if (userTz === undefined) delete process.env.MCP_USER_TZ;
+    else process.env.MCP_USER_TZ = userTz;
+  });
+
+  // fleet-audit#1228: a hosted child runs in UTC, so "today" must be the
+  // USER's date (MCP_USER_TZ, the fleet convention) when that is set.
+  it("uses MCP_USER_TZ over the server's zone", () => {
+    process.env.TZ = 'UTC';
+    process.env.MCP_USER_TZ = 'America/New_York';
+    // 01:30 UTC on 9 Oct is 21:30 on 8 Oct in New York.
+    expect(localIsoDate(Date.UTC(2026, 9, 9, 1, 30))).toBe('2026-10-08');
   });
 
   it('formats the LOCAL calendar date, not the UTC one', () => {

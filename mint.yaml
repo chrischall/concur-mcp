@@ -28,21 +28,28 @@ env:
     required: false
     help: >-
       Where concur_get_receipt saves downloaded receipts, never overwriting an
-      existing file (defaults to the working directory). Unused when receipts
+      existing file (defaults to ~/Downloads/concur-mcp). Unused when receipts
       are returned inline, which is the default when hosted.
   - name: CONCUR_UPLOAD_ROOTS
     required: false
     help: >-
       The only folders concur_upload_receipt may read from (a
       path-delimiter-separated list, ~ expanded). Defaults to
-      $MCP_DATA_DIR/uploads when hosted; locally the working directory,
-      ~/Downloads, ~/Documents and ~/Desktop.
+      $MCP_DATA_DIR/uploads when hosted; locally ~/Downloads, ~/Documents
+      and ~/Desktop, plus the working directory only when it is a folder
+      inside the home directory.
   - name: CONCUR_INLINE_RECEIPTS
     required: false
     help: >-
       true returns concur_get_receipt's image in the tool result instead of
       writing a file. Defaults to on when hosted (MCP_DATA_DIR set — the
       runner's disk is not the user's) and off locally.
+  - name: MCP_USER_TZ
+    required: false
+    help: >-
+      Your IANA time zone (e.g. America/New_York). concur_create_report
+      defaults reportDate to today in this zone; unset, a hosted server uses
+      UTC, so a report created in the evening is dated tomorrow.
   - name: CONCUR_DEBUG
     required: false
     help: >-

@@ -16,6 +16,7 @@ import {
   confirmWrite,
   toolAnnotations,
   untrustedResult,
+  todayIso,
 } from '@chrischall/mcp-utils';
 import { GraphqlResponseError } from '@chrischall/mcp-utils/graphql';
 import { warningsField, warningsOf, type ConcurClient } from '../client.js';
@@ -241,11 +242,14 @@ async function readReportComplete(
   return data;
 }
 
-/** Today's date in the server's local time zone (YYYY-MM-DD) — what the web app defaults a report to. */
+/**
+ * Today's date (YYYY-MM-DD) for a new report's default `reportDate` — what the
+ * web app defaults a report to. In the USER's zone: `MCP_USER_TZ` when set
+ * (mcp-utils `todayIso`; a hosted child runs in UTC), else the server's local
+ * zone.
+ */
 export function localIsoDate(ms: number): string {
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return todayIso({ now: new Date(ms) });
 }
 
 /** The report after a write, as Concur now shows it (header + entries + exceptions, plus any partial-read warnings). */
@@ -629,10 +633,11 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
     {
       description:
         'Submit an SAP Concur expense report for approval. This SENDS it to your approver (a third party) and locks ' +
-        'it for editing — only concur_recall_report can pull it back, and only before it is approved. Concur ' +
-        'validates first: a report with blocking exceptions is refused before anything is sent, and one with ' +
-        'warnings comes back unsubmitted with Concur’s message unless `acknowledgeWarnings` is true. Re-reads the ' +
-        'report afterwards and answers with its observed status. ' +
+        'it for editing — only concur_recall_report can pull it back, and only before it is approved. A report ' +
+        'with blocking exceptions is refused here before anything is sent. The submit is sent with Concur’s ' +
+        '`validate` flag on unless `acknowledgeWarnings` is true; the web app’s code suggests that a report with ' +
+        'warnings then comes back unsubmitted with Concur’s message, but that has not been verified live — so ' +
+        'trust the re-read: the tool re-reads the report afterwards and answers with its observed status. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Submit a Concur expense report', destructive: true, openWorld: true }),
       inputSchema: z.object({
@@ -640,7 +645,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         acknowledgeWarnings: z
           .boolean()
           .default(false)
-          .describe("Submit even though Concur's validation raised warnings (as the web app's \"submit anyway\"). Default false."),
+          .describe("Send the submit with Concur's `validate` flag off, as the web app's \"submit anyway\" appears to (not verified live). Default false."),
         confirmToken: confirmTokenParam,
       }),
     },
