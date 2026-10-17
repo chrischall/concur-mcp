@@ -84,8 +84,9 @@ npm run test:coverage
   with its serializer path in hand; everything else is refused with a reason.
   Text is checked against the form's `maximumLength` (custom fields cap at 48)
   — Concur answers a too-long value with a bare HTTP 400.
-- `src/graphql-guard.ts` — read-only check and the mutation deny-list for the
-  escape hatches; one test per deny-list entry.
+- `src/graphql-guard.ts` — the mutation deny-list for the escape hatches; one
+  test per deny-list entry. Documents are read by mcp-utils'
+  `inspectGraphqlDocument` (lifted from this file).
 - `src/receipt-files.ts` — upload confinement (`CONCUR_UPLOAD_ROOTS`) and
   receipt output (disk via `CONCUR_OUTPUT_DIR`, inline when hosted).
 

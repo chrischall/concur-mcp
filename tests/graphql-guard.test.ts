@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DENIED_MUTATIONS, findDeniedMutation, inspectGraphqlDocument } from '../src/graphql-guard.js';
+import { inspectGraphqlDocument } from '@chrischall/mcp-utils/graphql';
+import { DENIED_MUTATIONS, findDeniedMutation } from '../src/graphql-guard.js';
 import { SUBMIT_REPORT } from '../src/graphql/report-writes.js';
 import { SEND_ITINERARY } from '../src/graphql/travel.js';
 
@@ -18,7 +19,9 @@ function docOperation(file: string, name: string): string {
   return end < 0 ? body : body.slice(0, end);
 }
 
-describe('inspectGraphqlDocument', () => {
+// The shared inspector (lifted from this repo, fleet-audit#1231) — pinned here
+// because the deny-list and the tools' unreadable-document refusal rely on it.
+describe('inspectGraphqlDocument (mcp-utils)', () => {
   it('reads operations, field names and aliases, skipping arguments, variables, directives and fragments refs', () => {
     const doc = `# a comment mentioning submit
       mutation Save($submit: Boolean = true, $obj: In = {submit: 1}) {

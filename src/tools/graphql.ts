@@ -18,9 +18,9 @@ import {
   toolAnnotations,
   untrustedResult,
 } from '@chrischall/mcp-utils';
-import { isReadOnlyGraphqlDocument } from '@chrischall/mcp-utils/graphql';
+import { inspectGraphqlDocument, isReadOnlyGraphqlDocument, type GraphqlDocumentInfo } from '@chrischall/mcp-utils/graphql';
 import { warningsField, type ConcurClient } from '../client.js';
-import { findDeniedMutation, inspectGraphqlDocument, type GraphqlDocumentInfo } from '../graphql-guard.js';
+import { findDeniedMutation } from '../graphql-guard.js';
 import { OPERATION_TEXTS_URL, operationIndex, type GraphqlEndpoint } from '../operations.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
