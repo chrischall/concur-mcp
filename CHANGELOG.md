@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/chrischall/concur-mcp/compare/v0.3.1...v0.3.2) (2026-10-17)
+
+
+### Refactor
+
+* **graphql:** read raw GraphQL documents with mcp-utils inspectGraphqlDocument ([#27](https://github.com/chrischall/concur-mcp/issues/27)) ([d8528d7](https://github.com/chrischall/concur-mcp/commit/d8528d797e78e3a4d26a4d5b03a105654f533be4))
+
 ## [0.3.1](https://github.com/chrischall/concur-mcp/compare/v0.3.0...v0.3.1) (2026-10-16)
 
 
