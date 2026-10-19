@@ -10,6 +10,13 @@ summary: >-
   `fly-shared`, `bridge: true` and `bridgePortEnv: CONCUR_WS_PORT` — none of
   which this manifest can express (they are registration fields, set over the
   control API).
+examples:
+  - prompt: Which of my Concur expense reports haven't been submitted yet, and what are their totals?
+    note: Lists your unsubmitted reports with their amounts and dates.
+  - prompt: Open my latest expense report and tell me which entries are missing a receipt or have policy exceptions.
+    note: Read-only; flags blocking exceptions that would stop submission.
+  - prompt: What card transactions and receipts in Concur aren't on any report yet?
+    note: Shows available expenses still waiting to be added to a report.
 env:
   - name: CONCUR_DC
     required: false
