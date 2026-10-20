@@ -420,6 +420,15 @@ describe('partial GraphQL errors', () => {
     expect(text).not.toContain(OTD);
     expect(text).not.toContain(OTN);
   });
+
+  it('scrubs a bare cookie value before the 300-char cut, so no fragment of one straddling it survives', async () => {
+    const message = `${'x'.repeat(290)} ${OTN} tail`;
+    const { client } = harness([partial({ a: 1 }, [{ message, path: ['b'], extensions: {} }])], [COOKIES1]);
+    const out = await client.spend('mutation M { a }');
+    const [warning] = warningsOf(out);
+    expect(warning?.message).not.toContain(OTN.slice(0, 9));
+    expect(warning?.message).toContain(' [REDACT');
+  });
 });
 
 describe('secret scrubbing', () => {

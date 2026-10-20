@@ -14,6 +14,7 @@ import {
   UpstreamHttpError,
   formatApiError,
   messageOf,
+  redactValues,
   truncateErrorMessage,
   withAmbientCancellation,
 } from '@chrischall/mcp-utils';
@@ -85,20 +86,23 @@ export function isStaleSessionSignature(errors: readonly GraphqlError[] | undefi
 /** A session cookie written as `NAME=value` (as an upstream message might echo it). */
 const SESSION_COOKIE_PAIR = /\b(JWT|OTSESSION[A-Za-z0-9]*)=[^;\s,"']+/g;
 
-/**
- * Keep every session secret out of an error's text: `NAME=value` pairs by
- * pattern, and each live value verbatim (a bare echo carries no name). Mutates
- * in place so the error's identity and type survive.
- */
-function scrubText(text: string, sessions: readonly ConcurSessionInfo[]): string {
-  let out = text.replace(SESSION_COOKIE_PAIR, '$1=[REDACTED]');
-  for (const s of sessions) {
-    const values = [s.jwt, ...(s.legacyCookie ? s.legacyCookie.split('; ').map((pair) => pair.slice(pair.indexOf('=') + 1)) : [])];
-    for (const value of values) out = out.split(value).join('[REDACTED]');
-  }
-  return out;
+/** Every secret value the given sessions hold: each JWT and each legacy cookie's value. */
+function sessionValues(sessions: readonly ConcurSessionInfo[]): string[] {
+  return sessions.flatMap((s) => [s.jwt, ...(s.legacyCookie ? s.legacyCookie.split('; ').map((pair) => pair.slice(pair.indexOf('=') + 1)) : [])]);
 }
 
+/**
+ * Keep every session secret out of an error's text: `NAME=value` pairs by
+ * pattern, and each live value verbatim via `redactValues` (a bare echo carries
+ * no name; its JSON-escaped spelling is scrubbed too, and an empty value is
+ * skipped). Run it BEFORE any truncation, or half a value straddling the cut
+ * survives.
+ */
+function scrubText(text: string, sessions: readonly ConcurSessionInfo[]): string {
+  return redactValues(text.replace(SESSION_COOKIE_PAIR, '$1=[REDACTED]'), sessionValues(sessions));
+}
+
+/** Scrub {@link scrubText} over an error's message and hint, in place, so its identity and type survive. */
 function scrubSecrets(err: unknown, sessions: readonly ConcurSessionInfo[]): void {
   /* v8 ignore next -- every path below throws an Error; a non-Error has no text to scrub */
   if (!(err instanceof Error)) return;
@@ -405,7 +409,7 @@ export class ConcurClient {
           const correlationId = (e.extensions as { correlationId?: unknown } | undefined)?.correlationId;
           return {
             path: Array.isArray(e.path) ? e.path.join('.') : '',
-            message: scrubText(truncateErrorMessage(typeof e.message === 'string' && e.message ? e.message : 'Unknown error', 300), sessions),
+            message: truncateErrorMessage(scrubText(typeof e.message === 'string' && e.message ? e.message : 'Unknown error', sessions), 300),
             ...(correlationId !== undefined ? { correlationId: String(correlationId) } : {}),
           };
         }),

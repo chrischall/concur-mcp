@@ -89,12 +89,25 @@ describe('createConcurBridge', () => {
 
   it('a failed start is deferred to the first read, and does not crash close()', async () => {
     const server = fakeServer();
-    server.listen.mockRejectedValueOnce(new Error('identity unreadable'));
+    server.listen.mockRejectedValue(new Error('identity unreadable'));
     const bridge = bridgeWith(server);
     await expect(bridge.start()).rejects.toThrow('identity unreadable');
     await expect(bridge.readSessionCookies('us2')).rejects.toThrow('identity unreadable');
     await expect(bridge.close()).resolves.toBeUndefined();
     expect(server.close).not.toHaveBeenCalled();
+  });
+
+  it('a failed start is retried by the next read, without restarting the server', async () => {
+    const captured: FetchproxyServerOpts[] = [];
+    const server = fakeServer();
+    server.listen.mockRejectedValueOnce(new Error('identity unreadable'));
+    const bridge = bridgeWith(server, captured);
+    await expect(bridge.start()).rejects.toThrow('identity unreadable');
+    await expect(bridge.readSessionCookies('us2')).resolves.toEqual({ JWT: 'a.b.c' });
+    expect(server.listen).toHaveBeenCalledTimes(2);
+    expect(captured).toHaveLength(1);
+    await bridge.close();
+    expect(server.close).toHaveBeenCalledTimes(1);
   });
 
   it('close() is a no-op before start and closes the server after', async () => {
