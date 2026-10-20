@@ -1,15 +1,17 @@
 version: 1
 name: SAP Concur
 slug: concur
+# Hosting: browser-bridge bootstrap. The fetchproxy bridge only lifts the
+# HttpOnly session cookies (`JWT`, plus the OTSESSION pair when present) from
+# the user's signed-in <dc>.concursolutions.com tab; every API call is then
+# plain Node fetch with `Authorization: Bearer`. So the
+# registration needs runtime `fly-shared`, `bridge: true` and
+# `bridgePortEnv: CONCUR_WS_PORT` — none of which this manifest can express
+# (they are registration fields, set over the control API).
 summary: >-
-  SAP Concur expense reports, expenses, receipts and trips, read and write
-  (every write confirmation-gated). BROWSER-BRIDGE BOOTSTRAP MCP: the
-  fetchproxy bridge is used only to lift the HttpOnly `JWT` cookie from the
-  user's signed-in <dc>.concursolutions.com tab; every API call is then plain
-  Node fetch with `Authorization: Bearer`. Hosting therefore needs runtime
-  `fly-shared`, `bridge: true` and `bridgePortEnv: CONCUR_WS_PORT` — none of
-  which this manifest can express (they are registration fields, set over the
-  control API).
+  Read and write SAP Concur expense reports, expenses, receipts and trips,
+  with every write confirmation-gated. Signs in through your logged-in
+  Concur browser tab.
 examples:
   - prompt: Which of my Concur expense reports haven't been submitted yet, and what are their totals?
     note: Lists your unsubmitted reports with their amounts and dates.
