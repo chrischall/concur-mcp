@@ -112,6 +112,19 @@ describe('packaging', () => {
     expect(mint).not.toMatch(/^egress:/m);
   });
 
+  it('mint.yaml summary fits the catalog limit (200 UTF-16 units) and ends a sentence', () => {
+    // `summary: >-` is a folded scalar: its indented lines join with spaces.
+    const block = readText('mint.yaml').match(/^summary: >-\n((?: {2}.*\n)+)/m);
+    expect(block, 'summary must be a folded >- scalar').not.toBeNull();
+    const summary = block![1]
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .join(' ');
+    expect(summary.length).toBeLessThanOrEqual(200);
+    expect(summary).toMatch(/[.!?]$/);
+  });
+
   it('the vitest pair is grouped first in dependabot so a major never splits it', () => {
     const dependabot = readText('.github/dependabot.yml');
     const groups = dependabot.slice(dependabot.indexOf('groups:'));
