@@ -11,8 +11,8 @@ import { VERSION } from './version.js';
 // fetch with the JWT as a Bearer and the OTSESSION cookies as `Cookie`.
 const bridge = createConcurBridge({ port: readWsPort(), version: VERSION });
 // start() loads the fetchproxy identity (no port bind — that is lazy). A
-// failure is NOT fatal: the bridge caches it and re-throws it from the first
-// cookie read, so the server still boots and answers tools/list.
+// failure is NOT fatal: the next cookie read retries the start (and throws its
+// error if it still fails), so the server still boots and answers tools/list.
 await bridge.start().catch(() => {});
 
 // Built ONCE, outside the registrars (runMcp builds a server per connection).

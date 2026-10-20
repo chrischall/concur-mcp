@@ -9,7 +9,7 @@
 // depends on the bridge package resolving.
 
 import { parseCookieHeader } from '@chrischall/mcp-utils';
-import type { FetchproxyServer, FetchproxyServerOpts, FetchproxyTransport } from '@chrischall/mcp-utils/fetchproxy';
+import type { FetchproxyServer, FetchproxyServerOpts, FetchproxyTransport, LazyTransport } from '@chrischall/mcp-utils/fetchproxy';
 
 /** The cookie domain the bridge is scoped to. */
 export const BRIDGE_DOMAIN = 'concursolutions.com';
@@ -53,38 +53,42 @@ export interface ConcurBridgeOptions {
 }
 
 export function createConcurBridge(opts: ConcurBridgeOptions): ConcurBridge {
-  let started: Promise<FetchproxyTransport> | undefined;
+  // The library's build-once / start-once wrapper, itself built behind the
+  // lazy subpath import. `ready()` single-flights the start and FORGETS a
+  // rejected one, so a start failure (an unreadable identity file, say)
+  // surfaces from the next read instead of crashing boot — and that read
+  // retries it, so fixing the file needs no server restart.
+  let lazy: Promise<LazyTransport<FetchproxyTransport>> | undefined;
+  // The latest start attempt, so close() only closes a transport that started.
+  let lastReady: Promise<FetchproxyTransport> | undefined;
 
-  // Single-flight, and cached even when it fails: a start failure (an
-  // unreadable identity file, say) then surfaces on every read instead of
-  // crashing boot — the deferred-config-error pattern for the bridge.
-  const ensureStarted = (): Promise<FetchproxyTransport> =>
-    (started ??= (async () => {
-      const fp = await import('@chrischall/mcp-utils/fetchproxy');
-      const transport = fp.createFetchproxyTransport({
-        serverName: 'concur-mcp',
-        version: opts.version,
-        port: opts.port,
-        ...fp.createBootstrapOpts({
-          domains: [BRIDGE_DOMAIN],
-          bootstrap: { cookieKeys: [...SESSION_COOKIES] },
+  const lazyTransport = (): Promise<LazyTransport<FetchproxyTransport>> =>
+    (lazy ??= import('@chrischall/mcp-utils/fetchproxy').then((fp) =>
+      fp.createLazyTransport(() =>
+        fp.createFetchproxyTransport({
+          serverName: 'concur-mcp',
+          version: opts.version,
+          port: opts.port,
+          ...fp.createBootstrapOpts({
+            domains: [BRIDGE_DOMAIN],
+            bootstrap: { cookieKeys: [...SESSION_COOKIES] },
+          }),
+          debugEnvVar: 'CONCUR_DEBUG',
+          logListening: true,
+          // undefined → the library's default `new FetchproxyServer(...)`.
+          createServer: opts.createServer,
         }),
-        debugEnvVar: 'CONCUR_DEBUG',
-        logListening: true,
-        // undefined → the library's default `new FetchproxyServer(...)`.
-        createServer: opts.createServer,
-      });
-      await transport.start();
-      return transport;
-    })());
+      ),
+    ));
+
+  const ensureStarted = (): Promise<FetchproxyTransport> => (lastReady = lazyTransport().then((l) => l.ready()));
 
   return {
     async start() {
       await ensureStarted();
     },
     async close() {
-      if (!started) return;
-      const transport = await started.catch(() => undefined);
+      const transport = await lastReady?.catch(() => undefined);
       await transport?.close();
     },
     async readSessionCookies(dc) {
