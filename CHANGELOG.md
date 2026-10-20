@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.3](https://github.com/chrischall/concur-mcp/compare/v0.3.2...v0.3.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* retry a failed bridge start and scrub session values before truncating ([#33](https://github.com/chrischall/concur-mcp/issues/33)) ([ac82b68](https://github.com/chrischall/concur-mcp/commit/ac82b68c9b666230022ec102993f2d1b1476958c))
+
+
+### Documentation
+
+* **mint:** add sample prompts for the public catalog ([#30](https://github.com/chrischall/concur-mcp/issues/30)) ([5ce6f9f](https://github.com/chrischall/concur-mcp/commit/5ce6f9f8d5628b91c24722e2af2e7bf3320c4d4a))
+* **mint:** fit the catalog summary within 200 characters ([#32](https://github.com/chrischall/concur-mcp/issues/32)) ([e136fab](https://github.com/chrischall/concur-mcp/commit/e136fab6c9d3331488faf99e02b2e7a078ccecf4))
+
 ## [0.3.2](https://github.com/chrischall/concur-mcp/compare/v0.3.1...v0.3.2) (2026-10-17)
 
 
