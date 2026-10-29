@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.4](https://github.com/chrischall/concur-mcp/compare/v0.3.3...v0.3.4) (2026-10-29)
+
+
+### Bug Fixes
+
+* **deps:** Bump the production-dependencies group with 2 updates ([#35](https://github.com/chrischall/concur-mcp/issues/35)) ([ad9a28c](https://github.com/chrischall/concur-mcp/commit/ad9a28cc7b42ee36b211e9643caf7355e0a81a96))
+* **deps:** Bump the production-dependencies group with 2 updates ([#39](https://github.com/chrischall/concur-mcp/issues/39)) ([ff5dabd](https://github.com/chrischall/concur-mcp/commit/ff5dabd52616574f0285615ef8f7d719e3050702))
+* **deps:** require @chrischall/mcp-utils 3.4.0 ([#37](https://github.com/chrischall/concur-mcp/issues/37)) ([41187b0](https://github.com/chrischall/concur-mcp/commit/41187b0ba4338a1d84ddd5dd0a2e7024e7c4e404))
+
 ## [0.3.3](https://github.com/chrischall/concur-mcp/compare/v0.3.2...v0.3.3) (2026-10-20)
 
 
