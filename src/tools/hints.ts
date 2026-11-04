@@ -47,7 +47,6 @@ export const SEND = workMeta('send');
 
 // ── brief lines ──────────────────────────────────────────────────────────────
 
-
 const BRIEF_MAX = 120;
 
 /** Text from an upstream field, on one line; undefined when blank. */
