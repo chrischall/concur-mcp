@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/chrischall/concur-mcp/compare/v0.4.0...v0.4.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **brief:** align the brief view with the fleet contract ([#42](https://github.com/chrischall/concur-mcp/issues/42)) ([e25a056](https://github.com/chrischall/concur-mcp/commit/e25a056ba8734c8929612b6e6641f3d2e27285e7))
+
 ## [0.4.0](https://github.com/chrischall/concur-mcp/compare/v0.3.4...v0.4.0) (2026-11-04)
 
 
