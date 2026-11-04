@@ -15,9 +15,9 @@ import {
   toolAnnotations,
   untrustedResult,
 } from '@chrischall/mcp-utils';
-import { warningsField, type ConcurClient } from '../client.js';
+import { warningsField, warningsOf, type ConcurClient } from '../client.js';
 import { GET_TRIP, GET_TRIP_HISTORY, LIST_TRIPS, SEND_ITINERARY } from '../graphql/travel.js';
-import { LOOKUP, SEND, briefLine, briefResult, oneLine, workMeta } from './hints.js';
+import { LOOKUP, SEND, briefLine, briefResult, errorNotes, oneLine, workMeta } from './hints.js';
 import { concurBriefView, concurView, prune, respond } from './shared.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
@@ -429,8 +429,14 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         sort: { sortBy, direction },
         nextToken: nextToken ?? null,
       }, { essential: ['travel.trips.list'] });
-      listOf(data); // an error result is an error, not something to project around
-      if (view === 'brief') return briefResult((listOf(data).trips ?? []).map(briefTrip));
+      const list = listOf(data); // an error result is an error, not something to project around
+      if (view === 'brief') {
+        return briefResult(
+          (list.trips ?? []).map(briefTrip),
+          [...errorNotes(warningsOf(data)), ...(list.meta?.nextToken ? ['-- more'] : [])],
+          'Trip names and record locators come from your travel bookings and agency, not from this MCP.',
+        );
+      }
       return respond(
         view,
         data,

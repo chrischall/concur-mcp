@@ -26,8 +26,9 @@ export const concurView = (note: string) => viewParam(CONCUR_VIEWS, { note });
 
 /**
  * The `view` parameter of a context-group canonical read: the usual rungs plus
- * `brief`, one plain-text line per item (`title — <ISO date | no date> —
- * <status>`, ≤ 120 chars) for a host composing a spoken answer. `brief` sits
+ * `brief`, one line per item (`title — <ISO date | no date> — <status>`,
+ * ≤ 120 chars, plus `-- ` note lines) in the untrusted-data envelope, for a
+ * host composing a spoken answer. `brief` sits
  * outside mcp-utils' rung vocabulary, so the handler answers it before
  * `respond`.
  */

@@ -139,7 +139,10 @@ other approval calls are not built but not refused).
 On a host that groups MCPs by context (mcp-host's context groups), every tool
 here but `concur_healthcheck` is in the **work** group. Two reads are canonical,
 and both answer `view: "brief"` — one line per item,
-`title — <ISO date | no date> — <status>`:
+`title — <ISO date | no date> — <status>`, inside the untrusted-data envelope
+(the titles are merchants' and bookings' text). A line starting `-- ` is a note:
+`-- none` for nothing, `-- N of M shown` or `-- more` for a partial page, and
+`-- error: …` for a part Concur failed to read:
 
 - **what's due** — `concur_list_available_expenses`: card charges, e-receipts
   and captures not on a report yet (`not on a report`, or `receipt being read`).
