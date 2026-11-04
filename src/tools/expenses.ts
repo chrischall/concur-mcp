@@ -4,10 +4,10 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { McpToolError, UNTRUSTED_DESCRIPTION_SUFFIX, toolAnnotations } from '@chrischall/mcp-utils';
-import type { ConcurClient } from '../client.js';
+import { warningsOf, type ConcurClient } from '../client.js';
 import { GET_EXPENSE, LIST_AVAILABLE_EXPENSES } from '../graphql/expenses.js';
 import { compactEntry, compactException, reportIdParam } from './reports.js';
-import { LOOKUP, briefLine, briefResult, oneLine, workMeta } from './hints.js';
+import { LOOKUP, briefLine, briefResult, errorNotes, oneLine, workMeta } from './hints.js';
 import {
   CONTEXT_ROLE,
   concurBriefView,
@@ -233,6 +233,21 @@ export function briefAvailable(e: AvailableExpense): string {
   return briefLine(amount ? `${name} (${amount})` : name, oneLine(e.transactionDate), reading ? 'receipt being read' : 'not on a report');
 }
 
+/** Who writes the text on an available-expense brief line. */
+const AVAILABLE_WHO_WROTE = 'Vendor and expense-type names come from merchants, card feeds and receipts, not from this MCP.';
+
+/**
+ * The paging note for one page of available expenses: `-- N of M shown` when
+ * Concur's total says more exist past this page, `-- more` when only its page
+ * count does, nothing on the last page.
+ */
+export function availablePagingNotes(shown: number, page: number, size: number, pagination: Rec | null | undefined): string[] {
+  const total = pagination?.totalElements;
+  if (typeof total === 'number') return (page - 1) * size + shown < total ? [`-- ${shown} of ${total} shown`] : [];
+  const pages = pagination?.totalPages;
+  return typeof pages === 'number' && page < pages ? ['-- more'] : [];
+}
+
 // ── registration ──────────────────────────────────────────────────────────
 
 export function registerExpenseTools(server: McpServer, client: ConcurClient): void {
@@ -304,8 +319,14 @@ export function registerExpenseTools(server: McpServer, client: ConcurClient): v
         page,
         size,
       }, AVAILABLE_ESSENTIAL);
-      availableOf(data);
-      if (view === 'brief') return briefResult(availableOf(data).availableExpenses.map(briefAvailable));
+      const { availableExpenses, pagination } = availableOf(data);
+      if (view === 'brief') {
+        return briefResult(
+          availableExpenses.map(briefAvailable),
+          [...errorNotes(warningsOf(data)), ...availablePagingNotes(availableExpenses.length, page, size, pagination)],
+          AVAILABLE_WHO_WROTE,
+        );
+      }
       return respond(
         view,
         data,

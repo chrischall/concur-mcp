@@ -10,9 +10,9 @@ import { createTestHarness, type TestHarness } from '@chrischall/mcp-utils/test'
 import { ConcurClient } from '../src/client.js';
 import { TOOL_REGISTRARS } from '../src/tools/index.js';
 import { briefAvailable, registerExpenseTools } from '../src/tools/expenses.js';
-import { briefLine, oneLine } from '../src/tools/hints.js';
+import { briefLine, errorNotes, oneLine } from '../src/tools/hints.js';
 import { briefTrip, registerTravelTools } from '../src/tools/travel.js';
-import { SUB, textOf, toolHarness } from './helpers.js';
+import { SUB, fieldError, gqlPartial, textOf, toolHarness, untrustedPayload } from './helpers.js';
 
 type Mint = {
   domain?: string;
@@ -183,6 +183,22 @@ afterEach(async () => {
 
 const usd = (value: number) => ({ value, currencyCode: 'USD' });
 
+/** A brief answer's lines, after checking it is the minified untrusted-data envelope. */
+function briefOf(result: unknown): { note: string; lines: string[] } {
+  const text = textOf(result);
+  expect(text).toBe(JSON.stringify(JSON.parse(text))); // minified
+  const parsed = JSON.parse(text) as { note: string };
+  expect(Object.keys(parsed)).toEqual(['untrusted_content', 'note', 'data']); // the marker and note come first
+  const { data } = untrustedPayload(text) as { data: unknown };
+  expect(Array.isArray(data)).toBe(true);
+  return { note: parsed.note, lines: data as string[] };
+}
+
+const available = (availableExpenses: unknown[], pagination: unknown) => ({
+  employee: { userId: SUB, availableExpensesWithPagination: { availableExpenses, pagination } },
+});
+const trips = (list: unknown) => ({ travel: { trips: { list } } });
+
 describe('concur_list_available_expenses view: brief', () => {
   it('answers one line per expense: title — date — status, each ≤ 120 chars', async () => {
     const t = await toolHarness(registerExpenseTools, [
@@ -202,7 +218,8 @@ describe('concur_list_available_expenses view: brief', () => {
     ]);
     harness = t.harness;
     const result = await harness.callTool('concur_list_available_expenses', { view: 'brief' });
-    const lines = textOf(result).split('\n');
+    const { note, lines } = briefOf(result);
+    expect(note).toMatch(/merchants/);
     expect(lines).toHaveLength(3);
     expect(lines[0]).toBe('Coffee Co (4.5 USD) — 2026-10-04 — not on a report');
     expect(lines[1]).toBe('(receipt being read) — no date — receipt being read');
@@ -213,12 +230,48 @@ describe('concur_list_available_expenses view: brief', () => {
     expect(lines[2]).toMatch(/^A very long/);
   });
 
-  it('answers an empty list as no lines', async () => {
+  it('answers an empty list as the single note line `-- none`', async () => {
     const t = await toolHarness(registerExpenseTools, [
       { employee: { availableExpensesWithPagination: { availableExpenses: [], pagination: null } } },
     ]);
     harness = t.harness;
-    expect(textOf(await harness.callTool('concur_list_available_expenses', { view: 'brief' }))).toBe('');
+    expect(briefOf(await harness.callTool('concur_list_available_expenses', { view: 'brief' })).lines).toEqual(['-- none']);
+  });
+
+  it('says how many of the total a partial page shows', async () => {
+    const row = { transactionDate: '2026-10-04', vendor: 'Cab', transactionAmount: usd(9) };
+    const t = await toolHarness(registerExpenseTools, [
+      available([row, row], { number: 1, size: 2, totalElements: 5, totalPages: 3 }),
+      available([row], { number: 3, size: 2, totalElements: 5, totalPages: 3 }),
+      available([row, row], { number: 1, size: 2, totalPages: 3 }),
+      available([row], { number: 1, size: 2, totalPages: 1 }),
+    ]);
+    harness = t.harness;
+    const call = (page: number) =>
+      harness!.callTool('concur_list_available_expenses', { view: 'brief', page, size: 2 }).then((r) => briefOf(r).lines);
+    expect(await call(1)).toEqual(['Cab (9 USD) — 2026-10-04 — not on a report', 'Cab (9 USD) — 2026-10-04 — not on a report', '-- 2 of 5 shown']);
+    expect(await call(3)).toEqual(['Cab (9 USD) — 2026-10-04 — not on a report']); // the last page: nothing more
+    expect(await call(1)).toEqual([
+      'Cab (9 USD) — 2026-10-04 — not on a report',
+      'Cab (9 USD) — 2026-10-04 — not on a report',
+      '-- more',
+    ]); // no total, but more pages
+    expect(await call(1)).toEqual(['Cab (9 USD) — 2026-10-04 — not on a report']);
+  });
+
+  it("carries Concur's partial errors as `-- error:` notes rather than dropping them", async () => {
+    const t = await toolHarness(registerExpenseTools, [
+      gqlPartial(
+        available([], null),
+        fieldError(['employee', 'availableExpensesWithPagination', 'availableExpenses', 0, 'location']),
+      ),
+    ]);
+    harness = t.harness;
+    const { lines } = briefOf(await harness.callTool('concur_list_available_expenses', { view: 'brief' }));
+    expect(lines[0]).toBe('-- none');
+    expect(lines[1]).toMatch(/^-- error: Concur could not read employee\.availableExpensesWithPagination\.availableExpenses\.0\.location/);
+    expect(lines).toHaveLength(2);
+    for (const line of lines) expect(line.length).toBeLessThanOrEqual(120);
   });
 });
 
@@ -242,7 +295,8 @@ describe('concur_list_trips view: brief', () => {
     ]);
     harness = t.harness;
     const result = await harness.callTool('concur_list_trips', { view: 'brief', from: '2026-11-01', to: '2026-11-30' });
-    const lines = textOf(result).split('\n');
+    const { note, lines } = briefOf(result);
+    expect(note).toMatch(/Trip names/);
     expect(lines).toEqual([
       'Client visit — 2026-11-10 — Confirmed',
       'ABC123 — no date — HELD',
@@ -251,9 +305,55 @@ describe('concur_list_trips view: brief', () => {
     expect(t.sent[0]!.variables.filter).toMatchObject({ fromDate: '2026-11-01', toDate: '2026-11-30' });
     for (const line of lines) expect(line).toMatch(BRIEF_LINE);
   });
+
+  it('says `-- more` when Concur hands back a next-page token', async () => {
+    const t = await toolHarness(registerTravelTools, [
+      trips({ meta: { nextToken: 'tok' }, trips: [{ name: 'Offsite', startDate: '2026-11-10', status: 'CONFIRMED' }] }),
+    ]);
+    harness = t.harness;
+    expect(briefOf(await harness.callTool('concur_list_trips', { view: 'brief' })).lines).toEqual([
+      'Offsite — 2026-11-10 — CONFIRMED',
+      '-- more',
+    ]);
+  });
+
+  it("carries Concur's partial errors as `-- error:` notes", async () => {
+    const t = await toolHarness(registerTravelTools, [
+      gqlPartial(
+        trips({ meta: null, trips: [{ name: 'Offsite', startDate: '2026-11-10', status: 'CONFIRMED' }] }),
+        { message: 'x'.repeat(300), path: ['travel', 'trips', 'list', 'trips', 0, 'bookings'] },
+      ),
+    ]);
+    harness = t.harness;
+    const { lines } = briefOf(await harness.callTool('concur_list_trips', { view: 'brief' }));
+    expect(lines[0]).toBe('Offsite — 2026-11-10 — CONFIRMED');
+    expect(lines[1]).toMatch(/^-- error: Concur could not read travel\.trips\.list\.trips\.0\.bookings: x+…$/);
+    expect(lines[1]!.length).toBeLessThanOrEqual(120);
+  });
 });
 
 describe('brief line helpers', () => {
+  it('escapes a title that would read as a note, or that starts with a backslash, with one backslash', () => {
+    expect(briefLine('-- none', '2026-11-04', 'CONFIRMED')).toBe('\\-- none — 2026-11-04 — CONFIRMED');
+    expect(briefLine('\\x', 'no date', 'HELD')).toBe('\\\\x — no date — HELD');
+    expect(briefLine('--none', 'no date', 'HELD')).toBe('--none — no date — HELD');
+    expect(briefAvailable({ vendor: '-- more' })).toBe('\\-- more — no date — not on a report');
+  });
+
+  it('an error note says so even when Concur names no path or reason', () => {
+    expect(errorNotes([{ path: '', message: ' ' }])).toEqual([
+      '-- error: Concur could not read part of the answer: no reason given',
+    ]);
+    expect(errorNotes([])).toEqual([]);
+  });
+
+  it('an escaped long title is still cut to 120 as a whole line', () => {
+    const line = briefLine(`-- ${'y'.repeat(200)}`, '2026-11-04', 'not on a report');
+    expect(line).toHaveLength(120);
+    expect(line.startsWith('\\-- y')).toBe(true);
+    expect(line.endsWith('… — 2026-11-04 — not on a report')).toBe(true);
+  });
+
   it('oneLine folds control characters and whitespace, and treats blank as absent', () => {
     expect(oneLine('a\n\tb\u2028c')).toBe('a b c');
     expect(oneLine('  ')).toBeUndefined();
@@ -282,9 +382,9 @@ describe('brief line helpers', () => {
 });
 
 describe('concur_list_trips view: brief with no trips', () => {
-  it('answers a list that carries no trips array as no lines', async () => {
+  it('answers a list that carries no trips array as the single note line `-- none`', async () => {
     const t = await toolHarness(registerTravelTools, [{ travel: { trips: { list: { meta: null, trips: null } } } }]);
     harness = t.harness;
-    expect(textOf(await harness.callTool('concur_list_trips', { view: 'brief' }))).toBe('');
+    expect(briefOf(await harness.callTool('concur_list_trips', { view: 'brief' })).lines).toEqual(['-- none']);
   });
 });
