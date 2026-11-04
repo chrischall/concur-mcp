@@ -19,6 +19,7 @@ import {
   type Money,
   type PersonName,
 } from './shared.js';
+import { LOOKUP, workMeta } from './hints.js';
 
 /** What a report read cannot do without: a partial answer missing it is an error. */
 export const REPORT_ESSENTIAL = { essential: ['employee.expenseReport.reportDetails'] } as const;
@@ -331,6 +332,7 @@ export function registerReportTools(server: McpServer, client: ConcurClient): vo
         'Filter by status (ALL, ACTIVE, UNSUBMITTED, SENT_FOR_PAYMENT) and an optional report-date range; paged. ' +
         'Use the returned reportId with concur_get_report.',
       annotations: toolAnnotations({ title: 'List Concur expense reports', readOnly: true, openWorld: true }),
+      _meta: workMeta('lookup', { aliases: ['expense reports', 'reimbursement', 'approval'] }),
       inputSchema: z.object({
         status: z.enum(REPORT_STATUSES).default('ALL').describe('Which reports (default ALL).'),
         from: IsoDate.optional().describe('Range start, YYYY-MM-DD (needs `to`).'),
@@ -376,6 +378,7 @@ export function registerReportTools(server: McpServer, client: ConcurClient): vo
         'violations — `blocking` ones prevent submission). ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'Get a Concur expense report', readOnly: true, openWorld: true }),
+      _meta: LOOKUP,
       inputSchema: z.object({
         reportId: reportIdParam,
         view: concurView(
@@ -403,6 +406,7 @@ export function registerReportTools(server: McpServer, client: ConcurClient): vo
         'what, and when, at report and expense level). ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'Get a Concur report timeline', readOnly: true, openWorld: true }),
+      _meta: LOOKUP,
       inputSchema: z.object({
         reportId: reportIdParam,
         view: concurView(

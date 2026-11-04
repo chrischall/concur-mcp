@@ -42,6 +42,7 @@ import {
 import { EXPENSE_ESSENTIAL, compactExpense, expenseIdParam, type ExpenseData } from './expenses.js';
 import { reportIdParam } from './reports.js';
 import { CONTEXT_ROLE, concurView, prune, respond, trueFlags, verify } from './shared.js';
+import { CHANGE, LOOKUP } from './hints.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 
@@ -205,6 +206,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           'with concur_delete_receipt. ' +
           UNTRUSTED_DESCRIPTION_SUFFIX,
         annotations: toolAnnotations({ title: 'List Concur available receipts', readOnly: true, openWorld: true }),
+        _meta: LOOKUP,
         inputSchema: z.object({
           view: concurView('compact drops the signed image/thumbnail URLs and lists only the permissions that are true.'),
         }),
@@ -248,6 +250,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           destructive: false,
           openWorld: true,
         }),
+        _meta: LOOKUP,
         inputSchema: z.object({
           imageId: imageIdParam,
           reportId: reportIdParam.optional(),
@@ -323,6 +326,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           GATE,
         // Destructive because `append: true` adds a page no tool can take back off (see concur_append_receipt).
         annotations: toolAnnotations({ title: 'Upload a Concur receipt', readOnly: false, destructive: true, openWorld: true }),
+        _meta: CHANGE,
         inputSchema: z.object({
           path: z.string().min(1).describe('Local file path (a leading ~ is expanded; relative paths resolve against the working directory).'),
           reportId: reportIdParam.optional().describe('Report holding `expenseId` — attach the receipt to that expense.'),
@@ -461,6 +465,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
             destructive: field === 'appendImage',
             openWorld: true,
           }),
+          _meta: CHANGE,
           inputSchema: z.object({
             reportId: reportIdParam,
             expenseId: expenseIdParam,
@@ -526,6 +531,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           'your available receipts afterwards and reports whether the image went back to the receipt store. ' +
           GATE,
         annotations: toolAnnotations({ title: 'Detach a Concur receipt from an expense', readOnly: false, destructive: false, openWorld: true }),
+        _meta: CHANGE,
         inputSchema: z.object({ reportId: reportIdParam, expenseId: expenseIdParam, confirmToken: confirmTokenParam }),
       },
       async ({ reportId, expenseId, confirmToken }, ctx) => {
@@ -588,6 +594,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           'from its expense first with concur_detach_receipt. Re-reads the receipt store afterwards to confirm. ' +
           GATE,
         annotations: toolAnnotations({ title: 'Delete a Concur receipt', destructive: true, openWorld: true }),
+        _meta: CHANGE,
         inputSchema: z.object({ imageId: imageIdParam, confirmToken: confirmTokenParam }),
       },
       async ({ imageId, confirmToken }, ctx) => {

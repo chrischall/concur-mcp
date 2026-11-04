@@ -20,6 +20,7 @@ import { readExpense } from './expense-writes.js';
 import { compactExpense, expenseIdParam, requireExpense, type ExpenseData } from './expenses.js';
 import { reportIdParam } from './reports.js';
 import { CONTEXT_ROLE, concurView, personName, prune, respond, verify, type PersonName } from './shared.js';
+import { CHANGE, LOOKUP } from './hints.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 
@@ -216,6 +217,7 @@ export function registerAttendeeTools(server: McpServer, client: ConcurClient): 
         'name or email resolves to before concur_set_attendees. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'Search Concur attendees', readOnly: true, openWorld: true }),
+      _meta: LOOKUP,
       inputSchema: z.object({
         query: z.string().trim().min(1).max(100).describe('Name or email text to search for, e.g. "pat.example@example.com" or "Example".'),
         attendeeTypeKeys: attendeeTypeKeysParam(),
@@ -255,6 +257,7 @@ export function registerAttendeeTools(server: McpServer, client: ConcurClient): 
         're-read for its attendee count and any remaining exceptions. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Set Concur expense attendees', readOnly: false, destructive: true, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         reportId: reportIdParam,
         expenseId: expenseIdParam,

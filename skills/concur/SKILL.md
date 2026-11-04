@@ -134,6 +134,26 @@ and which tool already runs it — prefer that tool), then `concur_graphql_query
 and `updateWorkItemStatus`, and the six travel booking/cancel mutations —
 other approval calls are not built but not refused).
 
+## In context groups
+
+On a host that groups MCPs by context (mcp-host's context groups), every tool
+here but `concur_healthcheck` is in the **work** group. Two reads are canonical,
+and both answer `view: "brief"` — one line per item,
+`title — <ISO date | no date> — <status>`:
+
+- **what's due** — `concur_list_available_expenses`: card charges, e-receipts
+  and captures not on a report yet (`not on a report`, or `receipt being read`).
+  It takes no date range.
+- **what's on** — `concur_list_trips`, upcoming trips, its `from`/`to` range
+  filled from the ask.
+
+Neither declares a subject: every call is the signed-in employee's own data.
+Nothing here answers "what's new". A compound ask such as "what's on this week,
+and anything due at work?" reaches both through the group. Concur is reached
+through the user's signed-in browser tab, so when the ContextMint Bridge is not
+connected the group answers "Concur needs your browser open" rather than a
+result.
+
 ## Out of scope
 
 Approving other people's reports, card-account management, and booking or

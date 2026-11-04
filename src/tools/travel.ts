@@ -17,7 +17,8 @@ import {
 } from '@chrischall/mcp-utils';
 import { warningsField, type ConcurClient } from '../client.js';
 import { GET_TRIP, GET_TRIP_HISTORY, LIST_TRIPS, SEND_ITINERARY } from '../graphql/travel.js';
-import { concurView, prune, respond } from './shared.js';
+import { LOOKUP, SEND, briefLine, briefResult, oneLine, workMeta } from './hints.js';
+import { concurBriefView, concurView, prune, respond } from './shared.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 
@@ -216,6 +217,12 @@ function compactTripRow(t: TripListRow) {
   });
 }
 
+/** A trip as one brief line: `<name> — <start date | no date> — <status>`. */
+export function briefTrip(t: TripListRow): string {
+  const title = oneLine(t.name) ?? oneLine(t.recordLocator) ?? '(unnamed trip)';
+  return briefLine(title, oneLine(t.startDate), oneLine(t.displayStatus) ?? oneLine(t.status) ?? 'no status');
+}
+
 function compactTripList(list: TripListResult) {
   const statuses = (list.meta?.filter?.tripStatus ?? []).map((s) => s.value).filter((v): v is string => !!v);
   return prune({
@@ -383,6 +390,11 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         'changes or cancels travel. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'List Concur trips', readOnly: true, openWorld: true }),
+      _meta: workMeta('whats-on', {
+        canonical: true,
+        when: { start: 'from', end: 'to' },
+        aliases: ['trip', 'trips', 'travel', 'business trip', 'flight', 'hotel', 'itinerary'],
+      }),
       inputSchema: z.object({
         when: z.enum(['upcoming', 'past', 'all']).default('upcoming').describe('Which trips (default upcoming).'),
         name: z.string().trim().min(1).max(200).optional().describe('Only trips whose name matches this text.'),
@@ -396,7 +408,10 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         sortBy: z.enum(SORT_BY).default('START_DATE').describe('Sort attribute (default START_DATE).'),
         direction: z.enum(DIRECTIONS).default('ASCENDING').describe('Sort direction (default ASCENDING).'),
         nextToken: z.string().min(1).max(4096).optional().describe('`nextToken` from the previous page.'),
-        view: concurView('compact drops the filter metadata, image URLs and message fields, and dedupes booking kinds.'),
+        view: concurBriefView(
+          'compact drops the filter metadata, image URLs and message fields, and dedupes booking kinds.',
+          '<trip name> — <start date or "no date"> — <status>.',
+        ),
       }),
     },
     async ({ when, name, statuses, from, to, sortBy, direction, nextToken, view }) => {
@@ -415,6 +430,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         nextToken: nextToken ?? null,
       }, { essential: ['travel.trips.list'] });
       listOf(data); // an error result is an error, not something to project around
+      if (view === 'brief') return briefResult((listOf(data).trips ?? []).map(briefTrip));
       return respond(
         view,
         data,
@@ -433,6 +449,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         '(vendor, pickup/drop-off), rail (stations, times). Read-only. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'Get a Concur trip', readOnly: true, openWorld: true }),
+      _meta: LOOKUP,
       inputSchema: z.object({
         tripId: tripIdParam,
         view: concurView('compact flattens each booking to its essentials and joins addresses and amounts into strings.'),
@@ -453,6 +470,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         'added/changed/cancelled, and itinerary emails sent (with recipients). Read-only. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'Get a Concur trip history', readOnly: true, openWorld: true }),
+      _meta: LOOKUP,
       inputSchema: z.object({
         tripId: tripIdParam,
         view: concurView('compact flattens every event to {at, action, actor, reason, ...details} with short action names.'),
@@ -479,6 +497,7 @@ export function registerTravelTools(server: McpServer, client: ConcurClient): vo
         'name>". ' +
         GATE,
       annotations: toolAnnotations({ title: 'Email a Concur trip itinerary', destructive: true, openWorld: true }),
+      _meta: SEND,
       inputSchema: z.object({
         tripId: tripIdParam,
         recipients: z.array(z.email()).min(1).max(20).describe('Email addresses to send the itinerary to.'),
