@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/chrischall/concur-mcp/compare/v0.3.4...v0.4.0) (2026-11-04)
+
+
+### Features
+
+* context-group hints, a brief view on available expenses and trips ([#40](https://github.com/chrischall/concur-mcp/issues/40)) ([add02ac](https://github.com/chrischall/concur-mcp/commit/add02ac77530e7d77fef4de7356ede7fb3e73489))
+
 ## [0.3.4](https://github.com/chrischall/concur-mcp/compare/v0.3.3...v0.3.4) (2026-10-29)
 
 
