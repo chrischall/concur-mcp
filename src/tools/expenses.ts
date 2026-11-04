@@ -7,8 +7,10 @@ import { McpToolError, UNTRUSTED_DESCRIPTION_SUFFIX, toolAnnotations } from '@ch
 import type { ConcurClient } from '../client.js';
 import { GET_EXPENSE, LIST_AVAILABLE_EXPENSES } from '../graphql/expenses.js';
 import { compactEntry, compactException, reportIdParam } from './reports.js';
+import { LOOKUP, briefLine, briefResult, oneLine, workMeta } from './hints.js';
 import {
   CONTEXT_ROLE,
+  concurBriefView,
   concurView,
   money,
   pageParam,
@@ -219,6 +221,18 @@ export function compactAvailable(e: AvailableExpense) {
   });
 }
 
+/**
+ * An available expense as one brief line: `<vendor or type> (<amount>) —
+ * <date | no date> — <status>`. Every row is something not on a report yet,
+ * so the status says that — or that Concur is still reading the receipt.
+ */
+export function briefAvailable(e: AvailableExpense): string {
+  const reading = (e.meta?.missingData ?? []).length > 0;
+  const name = oneLine(e.vendor) ?? oneLine(e.expenseType?.name) ?? (reading ? '(receipt being read)' : '(unnamed expense)');
+  const amount = money(e.transactionAmount) ?? money(e.postedAmount) ?? money(e.estimatedAmount);
+  return briefLine(amount ? `${name} (${amount})` : name, oneLine(e.transactionDate), reading ? 'receipt being read' : 'not on a report');
+}
+
 // ── registration ──────────────────────────────────────────────────────────
 
 export function registerExpenseTools(server: McpServer, client: ConcurClient): void {
@@ -231,6 +245,7 @@ export function registerExpenseTools(server: McpServer, client: ConcurClient): v
         'values (list-valued fields include the list item id). ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'Get a Concur expense', readOnly: true, openWorld: true }),
+      _meta: LOOKUP,
       inputSchema: z.object({
         reportId: reportIdParam,
         expenseId: expenseIdParam,
@@ -269,11 +284,16 @@ export function registerExpenseTools(server: McpServer, client: ConcurClient): v
         'still being read, not an error. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'List Concur available expenses', readOnly: true, openWorld: true }),
+      _meta: workMeta('whats-due', {
+        canonical: true,
+        aliases: ['expenses', 'receipts', 'card charges', 'expense report', 'reimbursement', 'concur'],
+      }),
       inputSchema: z.object({
         page: pageParam,
         size: sizeParam,
-        view: concurView(
+        view: concurBriefView(
           'compact flattens amounts, keeps the card last digits and lists true source flags by name; it drops card account/transaction ids, e-receipt ids and the exchange rate.',
+          '<vendor> (<amount>) — <date or "no date"> — <not on a report | receipt being read>.',
         ),
       }),
     },
@@ -285,6 +305,7 @@ export function registerExpenseTools(server: McpServer, client: ConcurClient): v
         size,
       }, AVAILABLE_ESSENTIAL);
       availableOf(data);
+      if (view === 'brief') return briefResult(availableOf(data).availableExpenses.map(briefAvailable));
       return respond(
         view,
         data,

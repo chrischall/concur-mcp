@@ -66,6 +66,7 @@ import {
 } from './forms.js';
 import { REPORT_ESSENTIAL, compactReport, reportIdParam, vendorOf, type EntrySummary, type ReportPageData } from './reports.js';
 import { CONTEXT_ROLE, prune, verify } from './shared.js';
+import { CHANGE } from './hints.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 
@@ -523,6 +524,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         'with missing required fields but attaches exceptions — the answer reports them rather than failing. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Create a Concur expense', readOnly: false, destructive: false, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         reportId: reportIdParam,
         expenseType: z.string().trim().min(1).describe('Expense type id (e.g. "DUESX") or its name (e.g. "Dues").'),
@@ -689,6 +691,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         'create a new one. Answers with the expense as Concur shows it afterwards, including any exceptions. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Update a Concur expense', readOnly: false, destructive: false, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         reportId: reportIdParam,
         expenseId: expenseIdParam,
@@ -855,6 +858,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         'undone. The preview lists each expense that will be deleted. Re-reads the report afterwards to confirm. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Delete Concur expenses', destructive: true, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         reportId: reportIdParam,
         expenseIds: z.array(expenseIdParam).min(1).max(50).describe('Expense ids (`expenseId` from concur_get_report).'),
@@ -927,6 +931,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         'are not copied as the original’s). Answers with the new copy as Concur shows it. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Copy a Concur expense', readOnly: false, destructive: false, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({ reportId: reportIdParam, expenseId: expenseIdParam, confirmToken: confirmTokenParam }),
     },
     async ({ reportId, expenseId, confirmToken }, ctx) => {
@@ -994,6 +999,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         'moved. Re-reads both the report and the available list afterwards. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Move Concur available expenses to a report', destructive: true, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         reportId: reportIdParam,
         ids: z.array(availableIdParam).min(1).max(50).describe('Available-expense ids to move.'),
@@ -1065,6 +1071,7 @@ export function registerExpenseWriteTools(server: McpServer, client: ConcurClien
         'available list afterwards to confirm. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Delete Concur available expenses', destructive: true, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         ids: z.array(availableIdParam).min(1).max(50).describe('Available-expense ids to delete.'),
         confirmToken: confirmTokenParam,

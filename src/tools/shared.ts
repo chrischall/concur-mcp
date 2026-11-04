@@ -24,6 +24,21 @@ export const CONCUR_VIEWS = ['compact', 'full', 'raw'] as const satisfies readon
 /** The `view` parameter. `note` says what compact leaves out. */
 export const concurView = (note: string) => viewParam(CONCUR_VIEWS, { note });
 
+/**
+ * The `view` parameter of a context-group canonical read: the usual rungs plus
+ * `brief`, one plain-text line per item (`title — <ISO date | no date> —
+ * <status>`, ≤ 120 chars) for a host composing a spoken answer. `brief` sits
+ * outside mcp-utils' rung vocabulary, so the handler answers it before
+ * `respond`.
+ */
+export const concurBriefView = (note: string, brief: string) => {
+  const base = viewParam(CONCUR_VIEWS, { note });
+  return z
+    .enum([...CONCUR_VIEWS, 'brief'])
+    .optional()
+    .describe(`${base.description} "brief": one line per item — ${brief}`);
+};
+
 export const pageParam = z.number().int().min(1).default(1).describe('1-based page number (default 1).');
 export const sizeParam = z.number().int().min(1).max(100).default(50).describe('Page size, 1–100 (default 50).');
 

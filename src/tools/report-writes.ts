@@ -56,6 +56,7 @@ import {
   type TimelineDay,
 } from './reports.js';
 import { CONTEXT_ROLE, prune, verify } from './shared.js';
+import { CHANGE, SEND } from './hints.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 
@@ -304,6 +305,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'field that will be sent and any required field still empty. Answers with the new report as Concur shows it. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Create a Concur expense report', readOnly: false, destructive: false, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         name: z.string().min(1).max(200).describe('Report name.'),
         reportDate: IsoDate.optional().describe('Report date, YYYY-MM-DD (default today).'),
@@ -400,6 +402,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'Answers with the report as Concur shows it afterwards. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Update a Concur report header', readOnly: false, destructive: false, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({
         reportId: reportIdParam,
         name: z.string().min(1).max(200).optional().describe('New report name.'),
@@ -480,6 +483,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'expenses that will be deleted. Re-reads afterwards to confirm the report is gone. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Delete a Concur expense report', destructive: true, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({ reportId: reportIdParam, confirmToken: confirmTokenParam }),
     },
     async ({ reportId, confirmToken }, ctx) => {
@@ -565,6 +569,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'answer, else by re-reading the timeline). ' +
         GATE,
       annotations: toolAnnotations({ title: 'Comment on a Concur report', destructive: true, openWorld: true }),
+      _meta: SEND,
       inputSchema: z.object({
         reportId: reportIdParam,
         comment: z.string().trim().min(1).max(2000).describe('The comment text.'),
@@ -640,6 +645,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'trust the re-read: the tool re-reads the report afterwards and answers with its observed status. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Submit a Concur expense report', destructive: true, openWorld: true }),
+      _meta: SEND,
       inputSchema: z.object({
         reportId: reportIdParam,
         acknowledgeWarnings: z
@@ -749,6 +755,7 @@ export function registerReportWriteTools(server: McpServer, client: ConcurClient
         'Re-reads the report afterwards and answers with its observed status. ' +
         GATE,
       annotations: toolAnnotations({ title: 'Recall a Concur expense report', readOnly: false, destructive: false, openWorld: true }),
+      _meta: CHANGE,
       inputSchema: z.object({ reportId: reportIdParam, confirmToken: confirmTokenParam }),
     },
     async ({ reportId, confirmToken }, ctx) => {

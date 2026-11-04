@@ -22,6 +22,7 @@ import { CREATE_AFFIDAVITS, GET_AFFIDAVIT_CONTEXT } from '../graphql/receipt-dec
 import { expenseIdParam } from './expenses.js';
 import { REPORT_ESSENTIAL, reportIdParam } from './reports.js';
 import { CONTEXT_ROLE, money, prune, verify, type Money } from './shared.js';
+import { CHANGE } from './hints.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 
@@ -122,6 +123,7 @@ export function registerReceiptDeclarationTools(server: McpServer, client: Concu
         destructive: true,
         openWorld: true,
       }),
+      _meta: CHANGE,
       inputSchema: z.object({
         reportId: reportIdParam,
         expenseIds: z

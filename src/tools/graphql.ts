@@ -22,6 +22,7 @@ import { inspectGraphqlDocument, isReadOnlyGraphqlDocument, type GraphqlDocument
 import { warningsField, type ConcurClient } from '../client.js';
 import { findDeniedMutation } from '../graphql-guard.js';
 import { OPERATION_TEXTS_URL, operationIndex, type GraphqlEndpoint } from '../operations.js';
+import { LOOKUP, OTHER } from './hints.js';
 
 const GATE = `${CONFIRM_FLOW_SENTENCE} ${CONFIRM_INJECTION_RULE}`;
 const MAX_DOCUMENT = 100_000;
@@ -81,6 +82,7 @@ export function registerGraphqlTools(server: McpServer, client: ConcurClient): v
         'when concur_list_operations names one. Returns the GraphQL `data` as-is. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ title: 'Run a Concur GraphQL query', readOnly: true, openWorld: true }),
+      _meta: OTHER,
       inputSchema: z.object({
         endpoint: endpointParam,
         query: documentParam('query'),
@@ -112,6 +114,7 @@ export function registerGraphqlTools(server: McpServer, client: ConcurClient): v
         `names one. ${ENDPOINT_NOTE} ${SHAPES_NOTE} ` +
         GATE,
       annotations: toolAnnotations({ title: 'Run a Concur GraphQL mutation', destructive: true, openWorld: true }),
+      _meta: OTHER,
       inputSchema: z.object({
         endpoint: endpointParam,
         query: documentParam('mutation'),
@@ -166,6 +169,7 @@ export function registerGraphqlTools(server: McpServer, client: ConcurClient): v
         `(${OPERATION_TEXTS_URL}). Use it to find shapes for concur_graphql_query / concur_graphql_mutation. ` +
         'Local data — no call to Concur.',
       annotations: toolAnnotations({ title: 'List Concur GraphQL operations', readOnly: true, openWorld: false }),
+      _meta: LOOKUP,
       inputSchema: z.object({
         endpoint: z.enum(['spend', 'cds']).optional().describe('Only this endpoint.'),
         kind: z.enum(['query', 'mutation']).optional().describe('Only queries or only mutations.'),
