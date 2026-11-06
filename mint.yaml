@@ -37,16 +37,17 @@ env:
     required: false
     help: >-
       Where concur_get_receipt saves downloaded receipts, never overwriting an
-      existing file (defaults to ~/Downloads/concur-mcp). Unused when receipts
-      are returned inline, which is the default when hosted.
+      existing file (defaults to ~/Downloads/concur-mcp). Unused when hosted:
+      receipts come back inline, or as a signed download link over 10 MiB.
   - name: CONCUR_UPLOAD_ROOTS
     required: false
     help: >-
       The only folders concur_upload_receipt may read from (a
-      path-delimiter-separated list, ~ expanded). Defaults to
-      $MCP_DATA_DIR/uploads when hosted; locally ~/Downloads, ~/Documents
-      and ~/Desktop, plus the working directory only when it is a folder
-      inside the home directory.
+      path-delimiter-separated list, ~ expanded). Local installs only: a
+      hosted server refuses every path (callers use concur_upload_slots or
+      inline base64). Defaults to ~/Downloads, ~/Documents and ~/Desktop,
+      plus the working directory only when it is a folder inside the home
+      directory.
   - name: CONCUR_INLINE_RECEIPTS
     required: false
     help: >-

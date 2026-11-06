@@ -63,6 +63,7 @@ const EXPECTED_INTENT: Record<string, string> = {
   concur_list_available_receipts: 'lookup',
   concur_get_receipt: 'lookup',
   concur_upload_receipt: 'change',
+  concur_upload_slots: 'lookup',
   concur_attach_receipt: 'change',
   concur_append_receipt: 'change',
   concur_detach_receipt: 'change',

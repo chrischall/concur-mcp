@@ -1,14 +1,14 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  DiskReceiptOutput,
-  InlineReceiptOutput,
-  type ReceiptOutput,
   MAX_INLINE_BYTES,
+  RECEIPT_MIME_TYPES,
+  UPLOAD_MIME_BY_EXT,
   extensionForMime,
-  makeReceiptOutput,
+  inlineReceiptsByDefault,
+  receiptDownloadDir,
   uploadRoots,
 } from '../src/receipt-files.js';
 
@@ -85,46 +85,10 @@ describe('extensionForMime', () => {
   });
 });
 
-describe('DiskReceiptOutput', () => {
-  it('writes a private, never-overwriting file into CONCUR_OUTPUT_DIR', async () => {
-    const dir = tmp();
-    const out = new DiskReceiptOutput({ CONCUR_OUTPUT_DIR: dir });
-    expect(out.persistsFiles).toBe(true);
-    const bytes = new Uint8Array([1, 2, 3]);
-    const first = await out.save({ baseName: 'receipt-IMG1', extension: 'png', bytes });
-    const second = await out.save({ baseName: 'receipt-IMG1', extension: 'png', bytes });
-    expect(first).toBe(join(dir, 'receipt-IMG1.png'));
-    expect(second).toBe(join(dir, 'receipt-IMG1-2.png'));
-    expect(new Uint8Array(readFileSync(first!))).toEqual(bytes);
-    expect(statSync(first!).mode & 0o077).toBe(0);
-  });
-
-  it('without CONCUR_OUTPUT_DIR saves to ~/Downloads/concur-mcp, never the cwd', async () => {
-    const home = tmp();
-    vi.stubEnv('HOME', home);
-    try {
-      const out = new DiskReceiptOutput({});
-      const path = await out.save({ baseName: 'receipt-IMG1', extension: 'png', bytes: new Uint8Array([1]) });
-      expect(path).toBe(join(home, 'Downloads', 'concur-mcp', 'receipt-IMG1.png'));
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
-  it('a path-like base name cannot escape the directory', async () => {
-    const dir = tmp();
-    const out = new DiskReceiptOutput({ CONCUR_OUTPUT_DIR: dir });
-    const path = await out.save({ baseName: '../../etc/x', extension: 'png', bytes: new Uint8Array([1]) });
-    expect(path!.startsWith(dir)).toBe(true);
-  });
-});
-
-describe('InlineReceiptOutput', () => {
-  it('persists nothing', async () => {
-    // Typed as the interface: callers save through ReceiptOutput, which takes a file.
-    const out: ReceiptOutput = new InlineReceiptOutput();
-    expect(out.persistsFiles).toBe(false);
-    await expect(out.save({ baseName: 'x', extension: 'png', bytes: new Uint8Array([1]) })).resolves.toBeUndefined();
+describe('the receipt types', () => {
+  it('derive from the shared extension table: png / jpg / jpeg / pdf, no TIFF (vetUploadFile cannot verify its bytes)', () => {
+    expect(UPLOAD_MIME_BY_EXT).toEqual({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', pdf: 'application/pdf' });
+    expect([...RECEIPT_MIME_TYPES].sort()).toEqual(['application/pdf', 'image/jpeg', 'image/png']);
   });
 
   it('MAX_INLINE_BYTES keeps a result under the hosted 14 MiB cap', () => {
@@ -132,17 +96,35 @@ describe('InlineReceiptOutput', () => {
   });
 });
 
-describe('makeReceiptOutput', () => {
-  it('defaults to disk locally', () => {
-    expect(makeReceiptOutput({}).persistsFiles).toBe(true);
+describe('receiptDownloadDir', () => {
+  it('is CONCUR_OUTPUT_DIR when set', () => {
+    const dir = tmp();
+    expect(receiptDownloadDir({ CONCUR_OUTPUT_DIR: dir })).toBe(dir);
   });
 
-  it('defaults to inline when hosted (MCP_DATA_DIR set)', () => {
-    expect(makeReceiptOutput({ MCP_DATA_DIR: '/data' }).persistsFiles).toBe(false);
+  it('otherwise ~/Downloads/concur-mcp, never the cwd', () => {
+    const home = tmp();
+    vi.stubEnv('HOME', home);
+    try {
+      expect(receiptDownloadDir({})).toBe(join(home, 'Downloads', 'concur-mcp'));
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe('inlineReceiptsByDefault', () => {
+  it('is off locally', () => {
+    expect(inlineReceiptsByDefault({})).toBe(false);
+  });
+
+  it('is on when hosted (MCP_DATA_DIR or a blob store)', () => {
+    expect(inlineReceiptsByDefault({ MCP_DATA_DIR: '/data' })).toBe(true);
+    expect(inlineReceiptsByDefault({ MCP_BLOB_BASE_URL: 'https://blob.example.test/b/reg' })).toBe(true);
   });
 
   it('CONCUR_INLINE_RECEIPTS overrides either way', () => {
-    expect(makeReceiptOutput({ CONCUR_INLINE_RECEIPTS: '1' }).persistsFiles).toBe(false);
-    expect(makeReceiptOutput({ MCP_DATA_DIR: '/data', CONCUR_INLINE_RECEIPTS: 'false' }).persistsFiles).toBe(true);
+    expect(inlineReceiptsByDefault({ CONCUR_INLINE_RECEIPTS: '1' })).toBe(true);
+    expect(inlineReceiptsByDefault({ MCP_DATA_DIR: '/data', CONCUR_INLINE_RECEIPTS: 'false' })).toBe(false);
   });
 });
