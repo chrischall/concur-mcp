@@ -80,8 +80,8 @@ The token lives 60 minutes. The server re-reads the cookies (all together) from 
 | `CONCUR_DC` | `us2` | Your datacenter: the first label of your signed-in tab's host (`us2` for `us2.concursolutions.com`, `eu2`, …). Must match the session token's issuer, or every call fails with an error that says which value to use. |
 | `CONCUR_WS_PORT` | `37149` | The fetchproxy bridge port. The whole fetchproxy fleet and ContextMint Bridge share `37149`; override only for local testing (or when a host injects a per-registration port). |
 | `CONCUR_OUTPUT_DIR` | `~/Downloads/concur-mcp` | Where `concur_get_receipt` saves downloaded receipts (never overwriting an existing file). |
-| `CONCUR_UPLOAD_ROOTS` | `~/Downloads`, `~/Documents`, `~/Desktop`, plus the cwd when it is a folder inside your home directory (never `/` or home itself — Claude Desktop starts the server in `/`) | The only folders `concur_upload_receipt` will read from (a path-delimiter-separated list; `~` expanded). Hosted (with `MCP_DATA_DIR` set) the default is `$MCP_DATA_DIR/uploads`. |
-| `CONCUR_INLINE_RECEIPTS` | off locally, on when hosted | `true` makes `concur_get_receipt` return the image in the result instead of writing a file. |
+| `CONCUR_UPLOAD_ROOTS` | `~/Downloads`, `~/Documents`, `~/Desktop`, plus the cwd when it is a folder inside your home directory (never `/` or home itself — Claude Desktop starts the server in `/`) | The only folders `concur_upload_receipt` will read from (a path-delimiter-separated list; `~` expanded). A hosted server refuses every `path` (use `concur_upload_slots` or `inline`). |
+| `CONCUR_INLINE_RECEIPTS` | off locally, on when hosted | `true` makes `concur_get_receipt` return the image in the result instead of writing a file (over 10 MiB it is saved locally, or a signed link when hosted). |
 | `MCP_USER_TZ` | the server's zone | Your IANA time zone (e.g. `America/New_York`), used for "today" when `concur_create_report` defaults `reportDate`. Set it when hosted — a hosted server runs in UTC, so an evening report would otherwise be dated tomorrow. |
 | `CONCUR_DEBUG` | off | Log the bridge's role and lifecycle to stderr. |
 | `MCP_CONFIRM_MODE` | `ask-user` | What a write does on a client that cannot show a confirmation prompt — see below. |
@@ -158,8 +158,9 @@ Most read tools take `view: compact | full | raw` (default `compact`): `compact`
 | Tool | What it does | Gated? |
 |---|---|---|
 | `concur_list_available_receipts` | Receipt images in your receipt store that are not attached to an expense | read |
-| `concur_get_receipt` | Download a receipt image to `CONCUR_OUTPUT_DIR` (or inline) | local file only |
-| `concur_upload_receipt` | Upload a png / jpg / pdf (≤ 25 MB) from an allowed folder | yes |
+| `concur_get_receipt` | Download a receipt image (≤ 25 MB): to `CONCUR_OUTPUT_DIR` locally, inline, or — hosted and over 10 MiB — a signed download link valid for an hour | no (nothing changes in Concur) |
+| `concur_upload_slots` | Signed upload URLs (with a ready `curl`) for sending receipt files to a hosted server | no (signs URLs only) |
+| `concur_upload_receipt` | Upload a png / jpg / pdf (≤ 25 MB) from an allowed local folder (`path`, local installs only), as base64 (`inline`), or from an upload slot (`blobKey`) | yes |
 | `concur_attach_receipt` | Attach a stored image to an expense that has none | yes |
 | `concur_append_receipt` | Add a stored image as an extra page of an expense's receipt | yes |
 | `concur_detach_receipt` | Take the image off an expense | yes |

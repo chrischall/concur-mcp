@@ -87,8 +87,14 @@ npm run test:coverage
 - `src/graphql-guard.ts` — the mutation deny-list for the escape hatches; one
   test per deny-list entry. Documents are read by mcp-utils'
   `inspectGraphqlDocument` (lifted from this file).
-- `src/receipt-files.ts` — upload confinement (`CONCUR_UPLOAD_ROOTS`) and
-  receipt output (disk via `CONCUR_OUTPUT_DIR`, inline when hosted).
+- `src/receipt-files.ts` — the receipt file boundary: accepted types (from
+  mcp-utils' shared extension table), upload-path confinement
+  (`CONCUR_UPLOAD_ROOTS`, local only), and the download dir. Uploads go through
+  mcp-utils `resolveUploadSource` (path | inline | blobKey from
+  `concur_upload_slots`), read on BOTH confirm phases with the SHA-256 bound as
+  the revision; `release()` (deletes the slot's blob) runs only after Concur
+  accepted the upload. Downloads go through `deliverFile` (inline → signed link
+  when hosted → disk locally, chmod 0600 after).
 
 ## Rules specific to this repo
 

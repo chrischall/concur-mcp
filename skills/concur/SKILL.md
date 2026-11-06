@@ -107,17 +107,22 @@ not return this time while the rest of the answer is good.
 
 ## Receipts
 
-- `concur_upload_receipt` takes a local png / jpg / pdf (≤ 25 MB) inside the
-  allowed folders (`CONCUR_UPLOAD_ROOTS`, else the working directory,
-  `~/Downloads`, `~/Documents`, `~/Desktop`). It lands in the receipt store;
-  then `concur_attach_receipt` puts it on an expense with no receipt, or
-  `concur_append_receipt` adds it as an extra page.
+- `concur_upload_receipt` takes a png / jpg / pdf (≤ 25 MB) as exactly one of
+  `path` (a local file inside the allowed folders — `CONCUR_UPLOAD_ROOTS`, else
+  the working directory, `~/Downloads`, `~/Documents`, `~/Desktop`; local
+  installs only), `inline` (`{filename, contentBase64}`, for small files) or
+  `blobKey`. On a hosted server, call `concur_upload_slots` first, run each
+  slot's `curl` with the real file path, then pass its `blobKey`. It lands in
+  the receipt store; then `concur_attach_receipt` puts it on an expense with no
+  receipt, or `concur_append_receipt` adds it as an extra page.
 - No receipt at all? `concur_add_missing_receipt_declaration` creates Concur's
   Missing Receipt Declaration (affidavit) for expenses with no receipt image,
   when the report's policy allows it. Only call it when the USER says the
   receipt is missing — confirming is their certification.
 - `concur_get_receipt` downloads an image to `CONCUR_OUTPUT_DIR` (or returns it
-  inline when hosted / `CONCUR_INLINE_RECEIPTS=true`).
+  inline when hosted / `CONCUR_INLINE_RECEIPTS=true`). Hosted, a receipt over
+  10 MiB comes back as `downloadUrl`, a signed link valid for an hour — hand it
+  to the user, don't fetch it.
 
 ## Travel
 

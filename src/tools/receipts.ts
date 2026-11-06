@@ -1,12 +1,12 @@
 // Receipts: upload, list, get (download), attach / append / detach on an
 // expense, and delete. Every Concur write is confirm-gated and RE-READS
 // afterwards, answering with what Concur now shows. `concur_get_receipt` only
-// writes a LOCAL file (or answers inline), so it is not gated.
+// hands the file to the caller (inline, a signed link, or a LOCAL file), so it
+// is not gated; neither is `concur_upload_slots`, which only signs PUT URLs.
 
-import { createHash } from 'node:crypto';
-import { basename } from 'node:path';
+import { chmod } from 'node:fs/promises';
 import { z } from 'zod';
-import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
+import type { McpServer } from '@modelcontextprotocol/server';
 import {
   CONFIRM_FLOW_SENTENCE,
   CONFIRM_INJECTION_RULE,
@@ -15,11 +15,26 @@ import {
   confirmTokenParam,
   confirmWrite,
   messageOf,
+  minifiedResult,
   sniffMimeBytes,
   toolAnnotations,
   untrustedResult,
-  vetUploadFile,
 } from '@chrischall/mcp-utils';
+import {
+  MAX_UPLOAD_FILES,
+  blobStoreFromEnv,
+  deliverFile,
+  inlineFileSchema,
+  isHostedEnv,
+  mintUploadSlot,
+  resolveUploadMime,
+  resolveUploadSource,
+  sanitizeUploadFilename,
+  uploadSlotRequestSchema,
+  type BlobStore,
+  type DeliveredFile,
+  type UploadRelease,
+} from '@chrischall/mcp-utils/export';
 import { warningsField, type ConcurClient } from '../client.js';
 import { GET_EXPENSE } from '../graphql/expenses.js';
 import {
@@ -33,11 +48,12 @@ import {
 import {
   MAX_INLINE_BYTES,
   MAX_RECEIPT_BYTES,
+  RECEIPT_MIME_TYPES,
   UPLOAD_MIME_BY_EXT,
   extensionForMime,
-  makeReceiptOutput,
+  inlineReceiptsByDefault,
+  receiptDownloadDir,
   uploadRoots,
-  type ReceiptOutput,
 } from '../receipt-files.js';
 import { EXPENSE_ESSENTIAL, compactExpense, expenseIdParam, type ExpenseData } from './expenses.js';
 import { reportIdParam } from './reports.js';
@@ -182,19 +198,36 @@ function attachField(current: string | undefined, append: boolean, expenseId: st
 // ── registration ──────────────────────────────────────────────────────────
 
 export interface ReceiptToolOptions {
-  /** Where concur_get_receipt puts a download. Default: {@link makeReceiptOutput} from the env. */
-  output?: ReceiptOutput;
-  /** The folders an upload may come from. Default: {@link uploadRoots} from the env (read per call). */
+  /** The folders an upload path may come from. Default: {@link uploadRoots} from the env (read per call). */
   roots?: () => readonly string[];
   /** What a relative upload path resolves against. Default: the cwd. */
   baseDir?: string;
+  /** True on a hosted deployment (upload paths refused, nothing saved to disk). Default: mcp-utils `isHostedEnv`. */
+  hosted?: () => boolean;
+  /** The mcp-host blob store (upload slots, download links). Default: mcp-utils `blobStoreFromEnv`. */
+  store?: () => BlobStore | undefined;
+  /** Whether concur_get_receipt answers inline unless told otherwise. Default: {@link inlineReceiptsByDefault}. */
+  inlineByDefault?: () => boolean;
+  /** Where a local install saves a download. Default: {@link receiptDownloadDir} (created on first use). */
+  downloadDir?: () => string;
+}
+
+const SLOT_TOOL = 'concur_upload_slots';
+
+/** The blob-store cleanup after an upload, for the answer: nothing for a path / inline upload. */
+function releaseField(released: UploadRelease) {
+  if (released.deleted === null) return {};
+  return released.deleted ? { blobDeleted: true } : { blobDeleted: false, blobDeleteError: released.error };
 }
 
 /** The receipt-tool registrar, with its file boundary injectable (tests, hosting). */
 export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
   return function registerReceiptTools(server: McpServer, client: ConcurClient): void {
-    const output = opts.output ?? makeReceiptOutput();
     const roots = opts.roots ?? (() => uploadRoots());
+    const hosted = opts.hosted ?? (() => isHostedEnv());
+    const storeOf = opts.store ?? (() => blobStoreFromEnv());
+    const inlineByDefault = opts.inlineByDefault ?? (() => inlineReceiptsByDefault());
+    const downloadDir = opts.downloadDir ?? (() => receiptDownloadDir());
     const types = Object.keys(UPLOAD_MIME_BY_EXT).join(', ');
 
     server.registerTool(
@@ -240,9 +273,10 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           'Download one SAP Concur receipt image by id (from concur_list_available_receipts, or an expense’s ' +
           '`receiptImageId`). Locally it is saved, never overwriting, to CONCUR_OUTPUT_DIR (else ~/Downloads/' +
           'concur-mcp) and the path is returned; `inline: true` returns the image in the result instead (a PDF as ' +
-          'an embedded resource). On a hosted server nothing is saved and it is always inline. Pass `reportId` ' +
-          'for a receipt on a report so its permissions are judged in that context. Writes only a local file — ' +
-          'nothing changes in Concur. ' +
+          'an embedded resource). On a hosted server nothing is saved: it comes back inline, or — over 10 MiB — as ' +
+          'a signed download link that expires in an hour (`downloadUrl`; give it only to the user). Up to 25 MB. ' +
+          'Pass `reportId` for a receipt on a report so its permissions are judged in that context. Nothing ' +
+          'changes in Concur. ' +
           UNTRUSTED_DESCRIPTION_SUFFIX,
         annotations: toolAnnotations({
           title: 'Get a Concur receipt image',
@@ -279,37 +313,92 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
 
         const { bytes, contentType } = await client.download(receipt.imageUrl, { maxBytes: MAX_RECEIPT_BYTES });
         const mimeType = sniffMimeBytes(bytes) ?? contentType ?? 'application/octet-stream';
-        const file = { baseName: `receipt-${imageId}`, extension: extensionForMime(mimeType), bytes };
+        const fileName = `receipt-${imageId}.${extensionForMime(mimeType)}`;
 
-        let savedTo: string | undefined;
+        const isHosted = hosted();
+        const wantInline = inline || inlineByDefault();
+        // Only a local install that will actually write needs (and creates) the download folder.
+        const needsDisk = !isHosted && !(wantInline && bytes.byteLength <= MAX_INLINE_BYTES);
+        let delivered: DeliveredFile | undefined;
         let notice: string | undefined;
-        let block: CallToolResult['content'][number] | undefined;
-        const wantInline = inline || !output.persistsFiles;
-        if (wantInline && bytes.byteLength <= MAX_INLINE_BYTES) {
-          const data64 = Buffer.from(bytes).toString('base64');
-          block = /^image\/(png|jpeg|gif|webp)$/.test(mimeType)
-            ? { type: 'image', data: data64, mimeType }
-            : { type: 'resource', resource: { uri: `concur-receipt:${imageId}`, mimeType, blob: data64 } };
-        } else if (wantInline && !output.persistsFiles) {
-          notice = `The receipt is ${bytes.byteLength} bytes — over the ${MAX_INLINE_BYTES}-byte inline limit — so it is not included; open it in the Concur web app.`;
-        } else {
-          savedTo = await output.save(file);
-          if (wantInline) notice = `Too large to return inline (${bytes.byteLength} bytes), so it was saved instead.`;
+        try {
+          delivered = await deliverFile({
+            bytes,
+            fileName,
+            mimeType,
+            prefer: wantInline ? 'inline' : 'disk',
+            store: storeOf() ?? null,
+            keyPrefix: 'files',
+            inlineMaxBytes: MAX_INLINE_BYTES,
+            ...(needsDisk ? { disk: { dir: downloadDir() } } : {}),
+          });
+        } catch (err) {
+          // Hosted with no blob store and over the inline cap: no route to the bytes, but
+          // the receipt's details still answer the call.
+          if (!(err instanceof McpToolError) || err.kind !== 'too_large') throw err;
+          notice = `${err.message} Open it in the Concur web app.`;
         }
+        // A receipt is private: owner-only, like every file this server writes.
+        if (delivered?.path) await chmod(delivered.path, 0o600);
 
         const shown = view === 'raw' ? data : view === 'full' ? receipt : compactReceipt(receipt);
         const result = untrustedResult(
           prune({
             receipt: shown,
-            mimeType,
+            mimeType: delivered?.mimeType ?? mimeType,
             bytes: bytes.byteLength,
-            savedTo,
-            inline: block !== undefined,
-            notice,
+            via: delivered?.via,
+            inline: (delivered?.content.length ?? 0) > 0,
+            savedTo: delivered?.path,
+            downloadUrl: delivered?.url,
+            expiresAt: delivered?.expiresAt,
+            notice: delivered?.note ?? notice,
             ...warningsField(data),
           }),
         );
-        return block ? { ...result, content: [...result.content, block] } : result;
+        return delivered?.content.length ? { ...result, content: [...result.content, ...delivered.content] } : result;
+      },
+    );
+
+    server.registerTool(
+      SLOT_TOOL,
+      {
+        description:
+          `Get upload URLs for receipt files (${types}; up to 25 MB each, at most ${MAX_UPLOAD_FILES} per call) ` +
+          'so you can send them to concur_upload_receipt from anywhere — this is how to upload to a hosted ' +
+          '(remote) server, which cannot read files on your machine. Each slot has a `curl` command: run it with ' +
+          'the file\'s real path in place of the placeholder (it must send exactly the Content-Type shown), then ' +
+          'call concur_upload_receipt with the slot\'s `blobKey`. The URLs expire in 30 minutes. Changes nothing ' +
+          'in Concur. Needs the blob store a hosted deployment provides.',
+        annotations: toolAnnotations({ title: 'Get Concur receipt upload URLs', readOnly: true, openWorld: false }),
+        _meta: LOOKUP,
+        inputSchema: z.object({
+          files: z
+            .array(uploadSlotRequestSchema)
+            .min(1)
+            .max(MAX_UPLOAD_FILES)
+            .describe('The receipt files to upload, by name (and optionally MIME type).'),
+        }),
+      },
+      async ({ files }) => {
+        const store = storeOf();
+        if (!store) {
+          throw new McpToolError('This server has no blob store, so it cannot hand out upload URLs.', {
+            hint: 'Call concur_upload_receipt with `path` (a file on this machine) or `inline` (base64) instead.',
+          });
+        }
+        // Check every file before minting any, so a refusal leaves no half-used slots behind.
+        for (const f of files) {
+          const name = sanitizeUploadFilename(f.filename);
+          const type = resolveUploadMime(name, f.mimeType);
+          if (!RECEIPT_MIME_TYPES.includes(type)) {
+            throw new McpToolError(`${name}: ${type} is not accepted here (accepted: ${RECEIPT_MIME_TYPES.join(', ')}).`);
+          }
+        }
+        return minifiedResult({
+          slots: files.map((f) => mintUploadSlot(store, f)),
+          next: 'PUT each file with its curl command, then call concur_upload_receipt with that slot\'s blobKey (one per call).',
+        });
       },
     );
 
@@ -317,18 +406,31 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
       'concur_upload_receipt',
       {
         description:
-          `Upload a receipt file (${types}; up to 25 MB) from this computer to SAP Concur. The path must be inside ` +
-          'the allowed upload folders — CONCUR_UPLOAD_ROOTS when set, otherwise the working directory, ~/Downloads, ' +
-          '~/Documents or ~/Desktop — and its contents must match its extension; anything else is refused before a ' +
-          'byte is sent. With `reportId` + `expenseId` it is attached to that expense straight away (`append: true` ' +
-          'adds it to a receipt the expense already has); otherwise it lands in your available receipts. The ' +
-          'preview names the file, its size and SHA-256, and the target expense. ' +
+          `Upload a receipt file (${types}; up to 25 MB) to SAP Concur. Pass exactly one of: \`path\` — a file on ` +
+          'this computer, inside the allowed upload folders (CONCUR_UPLOAD_ROOTS when set, otherwise the working ' +
+          'directory, ~/Downloads, ~/Documents or ~/Desktop) — local installs only; `inline` — the bytes as base64, ' +
+          `for a small file; or \`blobKey\` — a file PUT to an upload URL from ${SLOT_TOOL} (the way to send a ` +
+          'file to a hosted server). Its contents must match its type; anything else is refused before a byte is ' +
+          'sent. With `reportId` + `expenseId` it is attached to that expense straight away (`append: true` adds ' +
+          'it to a receipt the expense already has); otherwise it lands in your available receipts. The preview ' +
+          'names the file, its size and SHA-256, and the target expense; an upload-slot file is deleted from the ' +
+          'slot once Concur has it. ' +
           GATE,
         // Destructive because `append: true` adds a page no tool can take back off (see concur_append_receipt).
         annotations: toolAnnotations({ title: 'Upload a Concur receipt', readOnly: false, destructive: true, openWorld: true }),
         _meta: CHANGE,
         inputSchema: z.object({
-          path: z.string().min(1).describe('Local file path (a leading ~ is expanded; relative paths resolve against the working directory).'),
+          path: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Local file path (a leading ~ is expanded; relative paths resolve against the working directory). Local installs only.'),
+          inline: inlineFileSchema.optional().describe('The file itself: {filename, contentBase64, mimeType?}. Best for small files.'),
+          blobKey: z
+            .string()
+            .min(1)
+            .optional()
+            .describe(`The blobKey of an upload slot from ${SLOT_TOOL}, after the file was PUT to its URL.`),
           reportId: reportIdParam.optional().describe('Report holding `expenseId` — attach the receipt to that expense.'),
           expenseId: expenseIdParam.optional().describe('Expense to attach the receipt to (needs `reportId`).'),
           append: z
@@ -338,24 +440,32 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           confirmToken: confirmTokenParam,
         }),
       },
-      async ({ path, reportId, expenseId, append, confirmToken }, ctx) => {
+      async ({ path, inline, blobKey, reportId, expenseId, append, confirmToken }, ctx) => {
         if (Boolean(reportId) !== Boolean(expenseId)) {
           throw new McpToolError('Pass both `reportId` and `expenseId` to attach the receipt, or neither.', {
             hint: 'Find the ids with concur_get_report.',
           });
         }
+        // Read (never consume) on BOTH phases: the confirmed call re-reads, and a changed
+        // file has a different SHA-256, which the token binds.
+        const src = await resolveUploadSource(
+          { ...(path !== undefined ? { path } : {}), ...(inline !== undefined ? { inline } : {}), ...(blobKey !== undefined ? { blobKey } : {}) },
+          {
+            maxBytes: MAX_RECEIPT_BYTES,
+            allowedMimeTypes: RECEIPT_MIME_TYPES,
+            path: {
+              mimeByExt: UPLOAD_MIME_BY_EXT,
+              allowedRoots: roots(),
+              ...(opts.baseDir ? { baseDir: opts.baseDir } : {}),
+              denyHiddenSegments: true,
+            },
+            store: storeOf() ?? null,
+            hosted: hosted(),
+            names: { slotTool: SLOT_TOOL },
+          },
+        );
         const userId = await client.userId();
-        const file = await vetUploadFile(path, {
-          mimeByExt: UPLOAD_MIME_BY_EXT,
-          maxBytes: MAX_RECEIPT_BYTES,
-          allowedRoots: roots(),
-          ...(opts.baseDir ? { baseDir: opts.baseDir } : {}),
-          denyHiddenSegments: true,
-          readAll: true,
-        });
-        const bytes = file.bytes!;
-        const sha256 = createHash('sha256').update(bytes).digest('hex');
-        const filename = basename(file.requested);
+        const filename = src.fileName;
 
         let before: ObservedExpense | undefined;
         let field: EntryImageField | undefined;
@@ -372,9 +482,19 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
             : `Upload ${filename} to your Concur available receipts`,
           account: userId,
           target: expenseId ?? '',
-          payload: { file: file.requested, size: file.size, mimeType: file.mime, sha256, reportId, expenseId, field },
+          revision: src.sha256,
+          payload: {
+            source: src.origin,
+            file: path ?? src.blobKey ?? filename,
+            size: src.sizeBytes,
+            mimeType: src.mimeType,
+            sha256: src.sha256,
+            reportId,
+            expenseId,
+            field,
+          },
           preview: prune({
-            file: { path: file.requested, name: filename, size: file.size, mimeType: file.mime, sha256 },
+            file: prune({ source: src.origin, path, name: filename, size: src.sizeBytes, mimeType: src.mimeType, sha256: src.sha256 }),
             attachTo: before ? expenseSummary(before) : undefined,
             mode: field,
           }),
@@ -382,9 +502,11 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
         });
         if (gate) return gate;
 
-        const uploaded = await client.upload({ data: bytes, filename, contentType: file.mime });
+        const uploaded = await client.upload({ data: src.bytes, filename, contentType: src.mimeType });
 
         // From here the upload has happened: nothing below may turn it into an error.
+        // Concur has the receipt, so the upload slot's copy goes (release never throws).
+        const cleanup = releaseField(await src.release());
         if (reportId && expenseId && field) {
           let attach: Awaited<ReturnType<typeof entryImage>>;
           try {
@@ -397,6 +519,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
               attached: false,
               attachError: `Attaching it to expense ${expenseId} failed: ${messageOf(err)}`,
               next: `The receipt is in your available receipts; attach it with concur_attach_receipt (imageId ${uploaded.imageId}) — do not upload it again.`,
+              ...cleanup,
             });
           }
           const { response: attached, ...attachWarnings } = attach;
@@ -405,6 +528,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
             imageId: uploaded.imageId,
             attached: true,
             response: { upload: uploaded, [field]: attached },
+            ...cleanup,
             ...attachWarnings,
             ...(await verify(async () => {
               const after = await readExpense(client, userId, reportId, expenseId);
@@ -425,6 +549,7 @@ export function makeReceiptTools(opts: ReceiptToolOptions = {}) {
           uploaded: true,
           imageId: uploaded.imageId,
           response: uploaded,
+          ...cleanup,
           ...(await verify(async () => {
             const available = await readAvailableReceipts(client, userId);
             const landed = available.find((r) => r.imageId === uploaded.imageId);

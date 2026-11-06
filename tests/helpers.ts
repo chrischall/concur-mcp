@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+import { createBlobStore, type BlobStore } from '@chrischall/mcp-utils/export';
 import { createTestHarness, type TestHarness } from '@chrischall/mcp-utils/test';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { ConcurClient } from '../src/client.js';
@@ -88,4 +90,65 @@ export function untrustedPayload(text: string): Record<string, unknown> {
   const { untrusted_content, note, ...rest } = JSON.parse(text) as Record<string, unknown>;
   if (untrusted_content !== true || typeof note !== 'string') throw new Error(`not untrusted-framed: ${text.slice(0, 80)}`);
   return rest;
+}
+
+// ── fake mcp-host blob store ───────────────────────────────────────────────
+
+export const BLOB_BASE = 'https://blob.example.test/b/reg-test';
+
+export interface FakeBlobStore {
+  store: BlobStore;
+  /** Objects by key. */
+  objects: Map<string, { bytes: Uint8Array; contentType: string }>;
+  /** Every exchange the store made, in order. */
+  calls: Array<{ method: string; key: string }>;
+  /** Make every DELETE answer HTTP 500. */
+  failDeletes(): void;
+  /** PUT a file the way a caller's curl would, to a slot's signed URL. */
+  curlPut(uploadUrl: string, bytes: Uint8Array, contentType: string): Promise<Response>;
+}
+
+/**
+ * A real mcp-utils BlobStore (real signing) whose gateway is an in-memory map
+ * behind a stubbed global `fetch` — the Concur client has its own fetchImpl,
+ * so the two never mix. Call `vi.unstubAllGlobals()` in afterEach.
+ */
+export function fakeBlobStore(): FakeBlobStore {
+  const objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
+  const calls: Array<{ method: string; key: string }> = [];
+  let deletesFail = false;
+  const prefix = new URL(BLOB_BASE).pathname + '/';
+  const gateway = async (input: string | URL | Request, init: RequestInit = {}): Promise<Response> => {
+    const url = new URL(String(input));
+    if (!url.pathname.startsWith(prefix) || !url.searchParams.get('sig') || !url.searchParams.get('exp')) {
+      return new Response('forbidden', { status: 403 });
+    }
+    const key = url.pathname.slice(prefix.length).split('/').map(decodeURIComponent).join('/');
+    const method = init.method ?? 'GET';
+    calls.push({ method, key });
+    if (method === 'PUT') {
+      const bytes = new Uint8Array(await new Response(init.body).arrayBuffer());
+      objects.set(key, { bytes, contentType: new Headers(init.headers).get('content-type') ?? '' });
+      return new Response(null, { status: 200 });
+    }
+    if (method === 'DELETE') {
+      if (deletesFail) return new Response('boom', { status: 500 });
+      objects.delete(key);
+      return new Response(null, { status: 204 });
+    }
+    const obj = objects.get(key);
+    if (!obj) return new Response('not found', { status: 404 });
+    return new Response(obj.bytes as Uint8Array<ArrayBuffer>, { status: 200, headers: { 'content-type': obj.contentType } });
+  };
+  vi.stubGlobal('fetch', gateway);
+  return {
+    store: createBlobStore({ baseUrl: BLOB_BASE, signingKey: 'test-signing-key' }),
+    objects,
+    calls,
+    failDeletes: () => {
+      deletesFail = true;
+    },
+    curlPut: (uploadUrl, bytes, contentType) =>
+      gateway(uploadUrl, { method: 'PUT', headers: { 'content-type': contentType }, body: bytes as Uint8Array<ArrayBuffer> }),
+  };
 }

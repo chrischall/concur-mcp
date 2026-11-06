@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { BlobStore } from '@chrischall/mcp-utils/export';
 import { parseToolResult, type TestHarness } from '@chrischall/mcp-utils/test';
 import { GET_EXPENSE } from '../src/graphql/expenses.js';
 import {
@@ -13,9 +14,19 @@ import {
   GET_RECEIPT,
   LIST_AVAILABLE_RECEIPTS,
 } from '../src/graphql/receipts.js';
-import { DiskReceiptOutput, InlineReceiptOutput, MAX_INLINE_BYTES, type ReceiptOutput } from '../src/receipt-files.js';
+import { MAX_INLINE_BYTES, MAX_RECEIPT_BYTES } from '../src/receipt-files.js';
 import { makeReceiptTools, registerReceiptTools } from '../src/tools/receipts.js';
-import { SUB, fieldError, gqlPartial, textOf, toolHarness, untrustedPayload, type SentRequest } from './helpers.js';
+import {
+  BLOB_BASE,
+  SUB,
+  fakeBlobStore,
+  fieldError,
+  gqlPartial,
+  textOf,
+  toolHarness,
+  untrustedPayload,
+  type SentRequest,
+} from './helpers.js';
 
 const RID = '0123456789ABCDEF0123';
 const EID = '0123456789abcdef0123456789abcdef';
@@ -26,6 +37,8 @@ const IMAGE_URL = 'https://www-us2.api.concursolutions.com/receipts/IMG1?sig=abc
 let harness: TestHarness | undefined;
 const dirs: string[] = [];
 afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   await harness?.close();
   harness = undefined;
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
@@ -47,19 +60,35 @@ interface Preview {
   preview: Record<string, unknown> & { action: string };
 }
 
-async function setup(script: unknown[], opts: { output?: ReceiptOutput; root?: string } = {}) {
+interface SetupOpts {
+  root?: string;
+  hosted?: boolean;
+  store?: BlobStore;
+  inlineDefault?: boolean;
+  dir?: string;
+}
+
+async function setup(script: unknown[], opts: SetupOpts = {}) {
   const root = opts.root ?? tmp();
+  const dir = opts.dir ?? tmp();
   const t = await toolHarness(
-    makeReceiptTools({ output: opts.output ?? new InlineReceiptOutput(), roots: () => [root], baseDir: root }),
+    makeReceiptTools({
+      roots: () => [root],
+      baseDir: root,
+      hosted: () => opts.hosted ?? false,
+      store: () => opts.store,
+      inlineByDefault: () => opts.inlineDefault ?? opts.hosted ?? false,
+      downloadDir: () => dir,
+    }),
     script,
   );
   harness = t.harness;
-  return { ...t, root };
+  return { ...t, root, dir };
 }
 
 /** Both phases: preview (no writes), then the same args + token. */
-async function confirmed(name: string, args: Record<string, unknown>, script: unknown[], root?: string) {
-  const t = await setup(script, { root });
+async function confirmed(name: string, args: Record<string, unknown>, script: unknown[], opts: SetupOpts | string = {}) {
+  const t = await setup(script, typeof opts === 'string' ? { root: opts } : opts);
   const first = parseToolResult<Preview>(await t.harness.callTool(name, args));
   expect(first.status).toBe('confirmation-required');
   expect(writes(t.sent)).toEqual([]);
@@ -148,9 +177,11 @@ describe('receipt tools', () => {
         'concur_get_receipt',
         'concur_list_available_receipts',
         'concur_upload_receipt',
+        'concur_upload_slots',
       ].sort(),
     );
     expect(by.concur_list_available_receipts!.annotations?.readOnlyHint).toBe(true);
+    expect(by.concur_upload_slots!.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false });
     expect(by.concur_get_receipt!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true });
     const gated = {
       concur_upload_receipt: true, // append: true cannot be undone
@@ -224,16 +255,22 @@ describe('concur_list_available_receipts', () => {
 describe('concur_get_receipt', () => {
   const lineItem = (r: unknown) => ({ employee: { userId: SUB, lineItemImage: r } });
 
-  it('locally saves the image (never overwriting) and returns the path', async () => {
-    const dir = tmp();
-    const output = new DiskReceiptOutput({ CONCUR_OUTPUT_DIR: dir });
-    const t = await setup([lineItem(receipt('IMG1')), bytes(PNG), lineItem(receipt('IMG1')), bytes(PNG)], { output });
+  it('locally saves the image (private, never overwriting) and returns the path', async () => {
+    const t = await setup([lineItem(receipt('IMG1')), bytes(PNG), lineItem(receipt('IMG1')), bytes(PNG)]);
+    const dir = t.dir;
     const first = untrustedPayload(textOf(await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1', reportId: RID })));
     expect(t.sent[0]!.query).toBe(GET_RECEIPT);
     expect(t.sent[0]!.variables).toEqual({ userId: SUB, contextRole: 'TRAVELER', imageId: 'IMG1', reportId: RID });
     expect(t.sent[1]!.url).toBe(IMAGE_URL);
-    expect(first).toMatchObject({ mimeType: 'image/png', bytes: PNG.byteLength, inline: false, savedTo: join(dir, 'receipt-IMG1.png') });
+    expect(first).toMatchObject({
+      mimeType: 'image/png',
+      bytes: PNG.byteLength,
+      via: 'disk',
+      inline: false,
+      savedTo: join(dir, 'receipt-IMG1.png'),
+    });
     expect(new Uint8Array(readFileSync(join(dir, 'receipt-IMG1.png')))).toEqual(PNG);
+    expect(statSync(join(dir, 'receipt-IMG1.png')).mode & 0o077).toBe(0);
     expect(JSON.stringify(first.receipt)).not.toContain('sig=abc');
     const second = untrustedPayload(textOf(await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' })));
     expect(second.savedTo).toBe(join(dir, 'receipt-IMG1-2.png'));
@@ -241,61 +278,114 @@ describe('concur_get_receipt', () => {
   });
 
   it('inline: true returns an image block and writes nothing', async () => {
-    const dir = tmp();
-    const output = new DiskReceiptOutput({ CONCUR_OUTPUT_DIR: dir });
-    const t = await setup([lineItem(receipt('IMG1')), bytes(PNG, 'application/octet-stream')], { output });
+    const t = await setup([lineItem(receipt('IMG1')), bytes(PNG, 'application/octet-stream')]);
     const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1', inline: true });
     const content = result.content as Array<Record<string, unknown>>;
     expect(content[1]).toEqual({ type: 'image', mimeType: 'image/png', data: Buffer.from(PNG).toString('base64') });
-    expect(untrustedPayload(textOf(result))).toMatchObject({ inline: true, mimeType: 'image/png' });
-    expect(untrustedPayload(textOf(result))).not.toHaveProperty('savedTo');
+    const out = untrustedPayload(textOf(result));
+    expect(out).toMatchObject({ inline: true, via: 'image', mimeType: 'image/png' });
+    expect(out).not.toHaveProperty('savedTo');
+    expect(readdirSync(t.dir)).toEqual([]);
   });
 
-  it('hosted (inline output) is always inline; a PDF comes back as an embedded resource', async () => {
-    const t = await setup([lineItem(receipt('IMG1', { fileType: 'PDF' })), bytes(PDF, 'application/pdf')]);
+  it('hosted answers inline by default; a PDF comes back as an embedded resource', async () => {
+    const t = await setup([lineItem(receipt('IMG1', { fileType: 'PDF' })), bytes(PDF, 'application/pdf')], { hosted: true });
     const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' });
     const content = result.content as Array<Record<string, unknown>>;
     expect(content[1]).toEqual({
       type: 'resource',
-      resource: { uri: 'concur-receipt:IMG1', mimeType: 'application/pdf', blob: Buffer.from(PDF).toString('base64') },
+      resource: { uri: 'attachment:///receipt-IMG1.pdf', mimeType: 'application/pdf', blob: Buffer.from(PDF).toString('base64') },
     });
+    expect(untrustedPayload(textOf(result))).toMatchObject({ inline: true, via: 'resource' });
+    expect(readdirSync(t.dir)).toEqual([]);
   });
 
   it('falls back to the response content type when the bytes are not sniffable', async () => {
     const tiff = new Uint8Array([0x49, 0x49, 0x2a, 0x00, 1, 2]);
-    const t = await setup([lineItem(receipt('IMG1')), bytes(tiff, 'image/tiff')]);
+    const t = await setup([lineItem(receipt('IMG1')), bytes(tiff, 'image/tiff')], { hosted: true });
     const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' });
     expect((result.content as Array<{ type: string }>)[1]!.type).toBe('resource');
     expect(untrustedPayload(textOf(result)).mimeType).toBe('image/tiff');
   });
 
-  it('over the inline cap: hosted says so; local saves instead', async () => {
-    const big = new Uint8Array(MAX_INLINE_BYTES + 1);
-    big.set(PNG);
-    const hosted = await setup([lineItem(receipt('IMG1')), bytes(big)]);
-    const out = untrustedPayload(textOf(await hosted.harness.callTool('concur_get_receipt', { imageId: 'IMG1' })));
-    expect(out).toMatchObject({ inline: false });
+  const big = () => {
+    const b = new Uint8Array(MAX_INLINE_BYTES + 1);
+    b.set(PNG);
+    return b;
+  };
+
+  it('over the inline cap when hosted with a blob store: a signed download link, nothing on disk', async () => {
+    const blob = fakeBlobStore();
+    const t = await setup([lineItem(receipt('IMG1')), bytes(big())], { hosted: true, store: blob.store });
+    const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' });
+    expect(result.content).toHaveLength(1);
+    const out = untrustedPayload(textOf(result));
+    expect(out).toMatchObject({ inline: false, via: 'link', bytes: MAX_INLINE_BYTES + 1 });
+    expect(out.downloadUrl).toMatch(new RegExp(`^${BLOB_BASE}/files/[0-9a-f-]{36}/receipt-IMG1\\.png\\?exp=\\d+&sig=`));
+    expect(Date.parse(out.expiresAt as string)).toBeGreaterThan(Date.now());
+    expect(out.notice).toMatch(/download link/);
+    expect(out).not.toHaveProperty('savedTo');
+    const [key] = [...blob.objects.keys()];
+    expect(blob.objects.get(key!)).toMatchObject({ contentType: 'image/png' });
+    expect(blob.objects.get(key!)!.bytes.byteLength).toBe(MAX_INLINE_BYTES + 1);
+    expect(readdirSync(t.dir)).toEqual([]);
+  });
+
+  it('over the inline cap when hosted with no blob store: says so, with the receipt details', async () => {
+    const t = await setup([lineItem(receipt('IMG1')), bytes(big())], { hosted: true });
+    const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' });
+    expect(result.isError).toBeFalsy();
+    const out = untrustedPayload(textOf(result));
+    expect(out).toMatchObject({ inline: false, receipt: { imageId: 'IMG1' } });
     expect(out.notice).toMatch(/inline limit/);
     expect(out).not.toHaveProperty('savedTo');
-    await harness?.close();
+    expect(out).not.toHaveProperty('downloadUrl');
+  });
 
+  it('over the inline cap locally with inline: true: saved instead', async () => {
+    const t = await setup([lineItem(receipt('IMG1')), bytes(big())]);
+    const saved = untrustedPayload(textOf(await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1', inline: true })));
+    expect(saved).toMatchObject({ via: 'disk', savedTo: join(t.dir, 'receipt-IMG1.png') });
+    expect(saved.notice).toMatch(/saved to disk instead/);
+  });
+
+  it('keeps the 25 MB download cap', async () => {
+    const t = await setup([lineItem(receipt('IMG1')), bytes(new Uint8Array(MAX_RECEIPT_BYTES + 1))], { hosted: true });
+    const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' });
+    expect(result.isError).toBe(true);
+  });
+
+  it('a delivery failure that is not about size is an error', async () => {
+    const blob = fakeBlobStore();
+    vi.stubGlobal('fetch', async () => new Response('down', { status: 503 }));
+    const t = await setup([lineItem(receipt('IMG1')), bytes(big())], { hosted: true, store: blob.store });
+    const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/HTTP 503/);
+  });
+
+  it('the default registrar reads the env: CONCUR_OUTPUT_DIR locally', async () => {
     const dir = tmp();
-    const local = await setup([lineItem(receipt('IMG1')), bytes(big)], { output: new DiskReceiptOutput({ CONCUR_OUTPUT_DIR: dir }) });
-    const saved = untrustedPayload(textOf(await local.harness.callTool('concur_get_receipt', { imageId: 'IMG1', inline: true })));
-    expect(saved.savedTo).toBe(join(dir, 'receipt-IMG1.png'));
-    expect(saved.notice).toMatch(/saved instead/);
+    vi.stubEnv('CONCUR_OUTPUT_DIR', dir);
+    vi.stubEnv('MCP_DATA_DIR', '');
+    vi.stubEnv('MCP_BLOB_BASE_URL', '');
+    vi.stubEnv('CONCUR_INLINE_RECEIPTS', '');
+    const t = await toolHarness(registerReceiptTools, [lineItem(receipt('IMG1')), bytes(PNG)]);
+    harness = t.harness;
+    const out = untrustedPayload(textOf(await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' })));
+    expect(out.savedTo).toBe(join(dir, 'receipt-IMG1.png'));
   });
 
   it('unsniffable bytes with no content type are application/octet-stream', async () => {
     const res = new Response(new Uint8Array([7, 7, 7]), { status: 200 });
     res.headers.delete('content-type');
-    const t = await setup([lineItem(receipt('IMG1')), res]);
+    const t = await setup([lineItem(receipt('IMG1')), res], { hosted: true });
     const result = await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1' });
     expect(untrustedPayload(textOf(result)).mimeType).toBe('application/octet-stream');
   });
 
   it('full / raw views', async () => {
-    const t = await setup([lineItem(receipt('IMG1')), bytes(PNG), lineItem(receipt('IMG1')), bytes(PNG)]);
+    const t = await setup([lineItem(receipt('IMG1')), bytes(PNG), lineItem(receipt('IMG1')), bytes(PNG)], { hosted: true });
     const full = untrustedPayload(textOf(await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1', view: 'full' })));
     expect((full.receipt as Record<string, unknown>).imageUrl).toBe(IMAGE_URL);
     const raw = untrustedPayload(textOf(await t.harness.callTool('concur_get_receipt', { imageId: 'IMG1', view: 'raw' })));
@@ -517,6 +607,207 @@ describe('concur_upload_receipt', () => {
     const second = await t.harness.callTool('concur_upload_receipt', { path: 'lunch.png', confirmToken: first.confirmToken });
     expect(writes(t.sent)).toEqual([]);
     expect(textOf(second)).not.toMatch(/"uploaded":true/);
+  });
+});
+
+// ── upload: inline and blob routes ────────────────────────────────────────
+
+describe('concur_upload_receipt — inline and upload-slot routes', () => {
+  const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
+  const b64 = (b: Uint8Array) => Buffer.from(b).toString('base64');
+  const filePart = (s: SentRequest) => (s.init.body as FormData).get('file') as File;
+
+  /** Mint a slot through the tool, then PUT `data` to it the way the caller's curl would. */
+  async function slotWith(t: { harness: TestHarness }, blob: ReturnType<typeof fakeBlobStore>, filename: string, data: Uint8Array, type: string) {
+    const minted = JSON.parse(textOf(await t.harness.callTool('concur_upload_slots', { files: [{ filename }] }))) as {
+      slots: Array<{ blobKey: string; uploadUrl: string; mimeType: string; curl: string }>;
+    };
+    const slot = minted.slots[0]!;
+    expect((await blob.curlPut(slot.uploadUrl, data, type)).ok).toBe(true);
+    return slot;
+  }
+
+  it.each([
+    ['none of them', {}],
+    ['path and inline', { path: 'lunch.png', inline: { filename: 'lunch.png', contentBase64: b64(PNG) } }],
+    ['inline and blobKey', { inline: { filename: 'lunch.png', contentBase64: b64(PNG) }, blobKey: 'uploads/x/y' }],
+  ])('needs exactly one of path / inline / blobKey — refuses %s', async (_label, args) => {
+    const t = await setup([]);
+    const result = await t.harness.callTool('concur_upload_receipt', args);
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/exactly one of path, inline or blobKey/);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it('inline: previews the SHA-256, uploads the decoded bytes under the given name', async () => {
+    const { preview, sent, text } = await confirmed(
+      'concur_upload_receipt',
+      { inline: { filename: 'receipt.png', contentBase64: `data:image/png;base64,${b64(PNG)}` } },
+      [accepted('NEWIMG'), available(receipt('NEWIMG'))],
+      { hosted: true },
+    );
+    expect(preview.preview.action).toBe('Upload receipt.png to your Concur available receipts');
+    expect(JSON.stringify(preview.preview)).toContain(sha(PNG));
+    const part = filePart(sent[0]!);
+    expect(part.name).toBe('receipt.png');
+    expect(part.type).toBe('image/png');
+    expect(new Uint8Array(await part.arrayBuffer())).toEqual(PNG);
+    const out = untrustedPayload(text);
+    expect(out).toMatchObject({ uploaded: true, imageId: 'NEWIMG' });
+    expect(out).not.toHaveProperty('blobDeleted');
+  });
+
+  it.each([
+    ['bad base64', { filename: 'receipt.png', contentBase64: 'iVBO$$$=' }, /not valid base64/],
+    ['a disallowed type', { filename: 'notes.txt', contentBase64: b64(new TextEncoder().encode('hello')) }, /text\/plain is not accepted here/],
+    ['bytes that do not match the type', { filename: 'receipt.pdf', contentBase64: b64(PNG) }, /do not look like application\/pdf/],
+    ['a path as the filename', { filename: '../receipt.png', contentBase64: b64(PNG) }, /bare filename/],
+  ])('inline: refuses %s before any upload', async (_label, inline, pattern) => {
+    const t = await setup([], { hosted: true });
+    const result = await t.harness.callTool('concur_upload_receipt', { inline });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(pattern);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it('inline: refuses a file over 25 MB from its encoded length', async () => {
+    const t = await setup([], { hosted: true });
+    const encoded = 'A'.repeat(Math.ceil((MAX_RECEIPT_BYTES + 1) / 3) * 4);
+    const result = await t.harness.callTool('concur_upload_receipt', { inline: { filename: 'receipt.pdf', contentBase64: encoded } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/too large .* the upload limit is 25 MiB/);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it('a path on a hosted server is refused, pointing at the upload slots', async () => {
+    const blob = fakeBlobStore();
+    const root = tmp();
+    writeFileSync(join(root, 'lunch.png'), PNG);
+    const t = await setup([], { hosted: true, store: blob.store, root });
+    const result = await t.harness.callTool('concur_upload_receipt', { path: 'lunch.png' });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/remote and can't read files on your machine.*concur_upload_slots/s);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  describe('concur_upload_slots', () => {
+    it('mints a signed PUT slot per file, committed to its type', async () => {
+      const blob = fakeBlobStore();
+      const t = await setup([], { hosted: true, store: blob.store });
+      const out = JSON.parse(
+        textOf(await t.harness.callTool('concur_upload_slots', { files: [{ filename: 'taxi receipt.jpg' }, { filename: 'hotel.pdf' }] })),
+      ) as { slots: Array<Record<string, string>>; next: string };
+      expect(out.slots).toHaveLength(2);
+      expect(out.slots[0]).toMatchObject({ filename: 'taxi receipt.jpg', mimeType: 'image/jpeg', method: 'PUT' });
+      expect(out.slots[0]!.blobKey).toMatch(/^uploads\/[0-9a-f-]{36}\/[A-Za-z0-9_-]+$/);
+      expect(out.slots[0]!.uploadUrl.startsWith(`${BLOB_BASE}/uploads/`)).toBe(true);
+      expect(out.slots[0]!.curl).toContain("-H 'Content-Type: image/jpeg'");
+      expect(out.slots[1]).toMatchObject({ filename: 'hotel.pdf', mimeType: 'application/pdf' });
+      expect(out.next).toMatch(/concur_upload_receipt.*blobKey/);
+      expect(blob.calls).toEqual([]);
+      expect(t.sent).toHaveLength(0);
+    });
+
+    it('refuses a type Concur does not accept, minting nothing', async () => {
+      const blob = fakeBlobStore();
+      const t = await setup([], { hosted: true, store: blob.store });
+      const result = await t.harness.callTool('concur_upload_slots', { files: [{ filename: 'a.png' }, { filename: 'notes.txt' }] });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toMatch(/notes\.txt: text\/plain is not accepted here/);
+    });
+
+    it('refuses clearly when the server has no blob store', async () => {
+      const t = await setup([]);
+      const result = await t.harness.callTool('concur_upload_slots', { files: [{ filename: 'a.png' }] });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toMatch(/no blob store.*`path`.*`inline`/s);
+    });
+  });
+
+  it('blobKey: reads the upload, keeps it through the preview, deletes it once Concur accepted the receipt', async () => {
+    const blob = fakeBlobStore();
+    const t = await setup([accepted('NEWIMG'), available(receipt('NEWIMG'))], { hosted: true, store: blob.store });
+    const slot = await slotWith(t, blob, 'taxi receipt.pdf', PDF, 'application/pdf');
+    const args = { blobKey: slot.blobKey };
+    const first = parseToolResult<Preview>(await t.harness.callTool('concur_upload_receipt', args));
+    expect(first.status).toBe('confirmation-required');
+    expect(first.preview.action).toBe('Upload taxi receipt.pdf to your Concur available receipts');
+    expect(JSON.stringify(first.preview)).toContain(sha(PDF));
+    expect(blob.calls.map((c) => c.method)).toEqual(['PUT', 'GET']);
+    expect(blob.objects.has(slot.blobKey)).toBe(true);
+    expect(t.sent).toHaveLength(0);
+
+    const result = await t.harness.callTool('concur_upload_receipt', { ...args, confirmToken: first.confirmToken });
+    const part = filePart(t.sent[0]!);
+    expect(part.name).toBe('taxi receipt.pdf');
+    expect(part.type).toBe('application/pdf');
+    expect(new Uint8Array(await part.arrayBuffer())).toEqual(PDF);
+    expect(blob.calls.map((c) => c.method)).toEqual(['PUT', 'GET', 'GET', 'DELETE']);
+    expect(blob.objects.has(slot.blobKey)).toBe(false);
+    expect(untrustedPayload(textOf(result))).toMatchObject({ uploaded: true, imageId: 'NEWIMG', blobDeleted: true });
+  });
+
+  it('blobKey: an upload Concur refuses keeps the blob for a retry', async () => {
+    const blob = fakeBlobStore();
+    const t = await setup([new Response('nope', { status: 500 })], { hosted: true, store: blob.store });
+    const slot = await slotWith(t, blob, 'lunch.png', PNG, 'image/png');
+    const first = parseToolResult<Preview>(await t.harness.callTool('concur_upload_receipt', { blobKey: slot.blobKey }));
+    const result = await t.harness.callTool('concur_upload_receipt', { blobKey: slot.blobKey, confirmToken: first.confirmToken });
+    expect(result.isError).toBe(true);
+    expect(blob.calls.map((c) => c.method)).not.toContain('DELETE');
+    expect(blob.objects.has(slot.blobKey)).toBe(true);
+  });
+
+  it('blobKey: a blob changed after the preview is refused, uploads nothing, and is kept', async () => {
+    const blob = fakeBlobStore();
+    const t = await setup([accepted()], { hosted: true, store: blob.store });
+    const slot = await slotWith(t, blob, 'lunch.png', PNG, 'image/png');
+    const first = parseToolResult<Preview>(await t.harness.callTool('concur_upload_receipt', { blobKey: slot.blobKey }));
+    await blob.curlPut(slot.uploadUrl, new Uint8Array([...PNG, 9]), 'image/png');
+    const second = await t.harness.callTool('concur_upload_receipt', { blobKey: slot.blobKey, confirmToken: first.confirmToken });
+    expect(textOf(second)).not.toMatch(/"uploaded":true/);
+    expect(writes(t.sent)).toEqual([]);
+    expect(blob.calls.map((c) => c.method)).not.toContain('DELETE');
+    expect(blob.objects.has(slot.blobKey)).toBe(true);
+  });
+
+  it('blobKey: a failed delete after a good upload is reported, never an error', async () => {
+    const blob = fakeBlobStore();
+    blob.failDeletes();
+    const t = await setup([accepted('NEWIMG'), available(receipt('NEWIMG'))], { hosted: true, store: blob.store });
+    const slot = await slotWith(t, blob, 'lunch.png', PNG, 'image/png');
+    const first = parseToolResult<Preview>(await t.harness.callTool('concur_upload_receipt', { blobKey: slot.blobKey }));
+    const result = await t.harness.callTool('concur_upload_receipt', { blobKey: slot.blobKey, confirmToken: first.confirmToken });
+    expect(result.isError).toBeFalsy();
+    const out = untrustedPayload(textOf(result));
+    expect(out).toMatchObject({ uploaded: true, imageId: 'NEWIMG', blobDeleted: false });
+    expect(out.blobDeleteError).toMatch(/HTTP 500/);
+  });
+
+  it('blobKey: the upload is released even when attaching it afterwards fails', async () => {
+    const blob = fakeBlobStore();
+    const t = await setup(
+      [expenseData(), expenseData(), accepted('NEWIMG'), { employee: { expenseReport: { entry: { attachImage: null } } } }],
+      { hosted: true, store: blob.store },
+    );
+    const slot = await slotWith(t, blob, 'lunch.png', PNG, 'image/png');
+    const args = { blobKey: slot.blobKey, reportId: RID, expenseId: EID };
+    const first = parseToolResult<Preview>(await t.harness.callTool('concur_upload_receipt', args));
+    const out = untrustedPayload(textOf(await t.harness.callTool('concur_upload_receipt', { ...args, confirmToken: first.confirmToken })));
+    expect(out).toMatchObject({ uploaded: true, attached: false, imageId: 'NEWIMG', blobDeleted: true });
+    expect(blob.objects.has(slot.blobKey)).toBe(false);
+  });
+
+  it('blobKey: refused when the key is not an upload-slot key, or the server has no blob store', async () => {
+    const blob = fakeBlobStore();
+    const t = await setup([], { hosted: true, store: blob.store });
+    const foreign = await t.harness.callTool('concur_upload_receipt', { blobKey: 'files/00000000-0000-4000-8000-000000000000/x.png' });
+    expect(textOf(foreign)).toMatch(/not an upload key/);
+    await harness?.close();
+    const local = await setup([]);
+    const none = await local.harness.callTool('concur_upload_receipt', { blobKey: 'uploads/00000000-0000-4000-8000-000000000000/bGFiZWwucG5n' });
+    expect(textOf(none)).toMatch(/no blob store/);
+    expect(blob.calls).toEqual([]);
   });
 });
 

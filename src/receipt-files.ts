@@ -1,38 +1,35 @@
-// The receipt tools' local-file boundary: where an upload may be read from,
-// and where a downloaded receipt goes.
+// The receipt tools' file boundary: which files an upload may be, where an
+// upload path may be read from, and where a downloaded receipt goes.
 //
-// Uploads: `concur_upload_receipt` takes a model-supplied path, so it is vetted
-// with mcp-utils `vetUploadFile` against operator-configured roots
-// (`CONCUR_UPLOAD_ROOTS`) — never a tool argument.
+// Uploads arrive by path (local installs only — vetted against
+// operator-configured roots, `CONCUR_UPLOAD_ROOTS`, never a tool argument),
+// inline base64, or an upload-slot blobKey; mcp-utils `resolveUploadSource`
+// validates all three the same way.
 //
-// Downloads: an injectable output with a `persistsFiles` flag. Locally the
-// server's disk IS the user's, so a receipt is written (never overwriting) to
-// `CONCUR_OUTPUT_DIR` (else `~/Downloads/concur-mcp`). Hosted, the disk is the runner's and the
-// user can never open a path on it, so the inline output writes nothing and the
-// tool returns the bytes in the result instead of claiming "saved to <path>".
+// Downloads go through mcp-utils `deliverFile`: inline when they fit, else a
+// signed link when hosted (the runner's disk is nobody's), else a file under
+// `CONCUR_OUTPUT_DIR` (else `~/Downloads/concur-mcp`) locally.
 
 import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
-import {
-  extensionForMime as sharedExtensionForMime,
-  parseBoolEnv,
-  readEnvVar,
-  resolveOutputDir,
-  writeUniqueFile,
-} from '@chrischall/mcp-utils';
+import { extensionForMime as sharedExtensionForMime, parseBoolEnv, readEnvVar, resolveOutputDir } from '@chrischall/mcp-utils';
+import { INLINE_DELIVERY_MAX_BYTES, isHostedEnv, mimeFromFileName } from '@chrischall/mcp-utils/export';
 import type { EnvSource } from './config.js';
 
 /**
- * What `concur_upload_receipt` accepts, as the MIME type it sends. The web app
- * also takes tif/tiff, but `vetUploadFile` refuses any type whose magic bytes it
- * cannot verify, and it has no TIFF signature — so TIFF is not offered.
+ * The extensions `concur_upload_receipt` accepts. The web app also takes
+ * tif/tiff, but the upload check refuses any type whose magic bytes it cannot
+ * verify, and it has no TIFF signature — so TIFF is not offered.
  */
-export const UPLOAD_MIME_BY_EXT: Readonly<Record<string, string>> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  pdf: 'application/pdf',
-};
+const RECEIPT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'pdf'] as const;
+
+/** Extension → MIME type for an upload path, from the shared mcp-utils table. */
+export const UPLOAD_MIME_BY_EXT: Readonly<Record<string, string>> = Object.fromEntries(
+  RECEIPT_EXTENSIONS.map((ext) => [ext, mimeFromFileName(`receipt.${ext}`)]),
+);
+
+/** The MIME types an upload may be, by any route. */
+export const RECEIPT_MIME_TYPES: readonly string[] = [...new Set(Object.values(UPLOAD_MIME_BY_EXT))];
 
 /** Largest receipt uploaded or downloaded. */
 export const MAX_RECEIPT_BYTES = 25 * 1024 * 1024;
@@ -41,12 +38,13 @@ export const MAX_RECEIPT_BYTES = 25 * 1024 * 1024;
  * Largest receipt returned inline. 10 MiB raw is ~13.3 MiB base64, under
  * mcp-host's 14 MiB per-result cap, so the tool's own note fires first.
  */
-export const MAX_INLINE_BYTES = 10 * 1024 * 1024;
+export const MAX_INLINE_BYTES = INLINE_DELIVERY_MAX_BYTES;
 
 /**
  * The folders an upload path must resolve inside:
  * - `CONCUR_UPLOAD_ROOTS` set → exactly those (a path-delimiter list, `~` expanded);
- * - unset, hosted (`MCP_DATA_DIR` set) → only `$MCP_DATA_DIR/uploads`;
+ * - unset, hosted (`MCP_DATA_DIR` set) → only `$MCP_DATA_DIR/uploads` (defence in
+ *   depth: a hosted server refuses every upload path before this is consulted);
  * - unset, locally → `~/Downloads`, `~/Documents`, `~/Desktop`, plus the cwd
  *   only when it is a folder INSIDE home (Claude Code's project dir). Claude
  *   Desktop starts .mcpb servers with cwd `/`, and `/` (or home itself, or a
@@ -83,49 +81,16 @@ export function extensionForMime(mime: string): string {
   return sharedExtensionForMime(mime);
 }
 
-export interface ReceiptFileToSave {
-  baseName: string;
-  extension: string;
-  bytes: Uint8Array;
-}
-
-/** Where a downloaded receipt goes. */
-export interface ReceiptOutput {
-  /** True when `save` puts a file the user can open; false when the tool must answer inline. */
-  readonly persistsFiles: boolean;
-  /** Save the file; the path written, or undefined when nothing persists. */
-  save(file: ReceiptFileToSave): Promise<string | undefined>;
-}
-
-/** Writes to `CONCUR_OUTPUT_DIR` (else `~/Downloads/concur-mcp`), owner-only, never overwriting. */
-export class DiskReceiptOutput implements ReceiptOutput {
-  readonly persistsFiles = true;
-
-  constructor(private readonly env: EnvSource = process.env) {}
-
-  async save(file: ReceiptFileToSave): Promise<string> {
-    // Resolved per call (it creates the directory) — never at boot.
-    const dir = resolveOutputDir(undefined, 'CONCUR_OUTPUT_DIR', { env: this.env, name: 'concur-mcp' });
-    return writeUniqueFile({ dir, baseName: file.baseName, extension: file.extension, bytes: file.bytes, mode: 0o600 });
-  }
-}
-
-/** Persists nothing: the tool returns the receipt in its result. */
-export class InlineReceiptOutput implements ReceiptOutput {
-  readonly persistsFiles = false;
-
-  async save(): Promise<undefined> {
-    return undefined;
-  }
+/** Where a local install saves a downloaded receipt: `CONCUR_OUTPUT_DIR`, else `~/Downloads/concur-mcp` (created). */
+export function receiptDownloadDir(env: EnvSource = process.env): string {
+  return resolveOutputDir(undefined, 'CONCUR_OUTPUT_DIR', { env, name: 'concur-mcp' });
 }
 
 /**
- * Disk locally; inline when hosted (`MCP_DATA_DIR` set). `CONCUR_INLINE_RECEIPTS`
+ * Whether `concur_get_receipt` answers inline by default: on when hosted (the
+ * runner's disk is not the user's), off locally. `CONCUR_INLINE_RECEIPTS`
  * overrides either way.
  */
-export function makeReceiptOutput(env: EnvSource = process.env): ReceiptOutput {
-  const hosted = Boolean(readEnvVar('MCP_DATA_DIR', { env }));
-  return parseBoolEnv('CONCUR_INLINE_RECEIPTS', { env, default: hosted })
-    ? new InlineReceiptOutput()
-    : new DiskReceiptOutput(env);
+export function inlineReceiptsByDefault(env: EnvSource = process.env): boolean {
+  return parseBoolEnv('CONCUR_INLINE_RECEIPTS', { env, default: isHostedEnv(env) });
 }

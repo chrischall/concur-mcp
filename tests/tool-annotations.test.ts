@@ -48,8 +48,11 @@ const DESTRUCTIVE = [
   'concur_upload_receipt', // `append: true` is the same irreversible append
 ].sort();
 
-/** The only tools that never reach Concur: concur_list_operations reads the bundled operation index. */
-const LOCAL_ONLY = ['concur_list_operations'];
+/**
+ * The only tools that never reach Concur (or any other server): concur_list_operations reads the
+ * bundled operation index; concur_upload_slots only signs blob-store PUT URLs.
+ */
+const LOCAL_ONLY = ['concur_list_operations', 'concur_upload_slots'];
 
 describe('tool annotations', () => {
   it('covers the whole surface (a meta-test that silently covers half is worse than none)', async () => {
