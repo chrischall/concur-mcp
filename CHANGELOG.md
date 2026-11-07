@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0](https://github.com/chrischall/concur-mcp/compare/v0.4.1...v0.5.0) (2026-11-07)
+
+
+### Features
+
+* **receipts:** upload and download receipts on hosted servers ([#47](https://github.com/chrischall/concur-mcp/issues/47)) ([8089148](https://github.com/chrischall/concur-mcp/commit/8089148f832ac5ae94ae017f5805f4ff84d2b03c))
+
+
+### Bug Fixes
+
+* **deps:** upgrade @chrischall/mcp-utils to 3.7.2 so uploads carry only the file's bytes ([#51](https://github.com/chrischall/concur-mcp/issues/51)) ([ca2b2d0](https://github.com/chrischall/concur-mcp/commit/ca2b2d03774f970c3d12f20fc4bec11117338e4e))
+
+
+### Documentation
+
+* **receipts:** note the concur_get_receipt output change for upgraders ([#50](https://github.com/chrischall/concur-mcp/issues/50)) ([8074026](https://github.com/chrischall/concur-mcp/commit/8074026f1a3b17ec5cbc7d95cc91c9419b0740b6))
+
 ## [0.4.1](https://github.com/chrischall/concur-mcp/compare/v0.4.0...v0.4.1) (2026-11-04)
 
 
