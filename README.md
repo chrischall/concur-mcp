@@ -194,6 +194,10 @@ Refused by `concur_graphql_mutation` (matched by operation name and by the field
 - **Card-transaction management** — the card accounts page and its operations: `/Expense/Client/cardtransactions.asp`, `GetCardAccounts`, `GetCardTransaction`, `MoveCCTransactionsToReport`, `CreateCBSReportAndMoveCCTransactionsToReport`, `RefreshYodleeTransactions`. (Card charges that already appear as available expenses *are* covered — list, move to a report, delete.)
 - **Booking or cancelling travel** — search, price, book, hold, confirm or cancel (`startSearch`, `saveBookingSelections`, `holdTrip`, `confirmTrip`, `commitChange`, `tryCancelTripOrBooking`). Trips are read-only apart from emailing the itinerary.
 
+## Upgrading
+
+**0.5.0 — `concur_get_receipt` inline output.** A non-image receipt returned inline (a PDF) is an embedded resource whose URI is now `attachment:///receipt-<imageId>.<ext>` (it was `concur-receipt:<imageId>`). The JSON block also gains `via` (`image`, `resource`, `link` or `disk`), and on a hosted server `downloadUrl` + `expiresAt` for a signed link. A caller that matched the old `concur-receipt:` URI should read `via` instead.
+
 ## Development
 
 ```bash
