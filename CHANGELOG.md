@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/chrischall/concur-mcp/compare/v0.5.0...v0.5.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** Bump the production-dependencies group with 2 updates ([#53](https://github.com/chrischall/concur-mcp/issues/53)) ([ca21b32](https://github.com/chrischall/concur-mcp/commit/ca21b325a576d37ee6e79c972d3e5c462db233af))
+
 ## [0.5.0](https://github.com/chrischall/concur-mcp/compare/v0.4.1...v0.5.0) (2026-11-07)
 
 
